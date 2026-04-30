@@ -1,0 +1,10 @@
+{
+  "source": "us_stocks",
+  "symbol": "AAPL",
+  "name": "Apple Inc.",
+  "type": "OHLCV",
+  "timezone": "UTC",
+  "currency": "USD",
+  "seed_price": 190,
+  "candles": []
+}

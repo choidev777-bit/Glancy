@@ -1,0 +1,10 @@
+{
+  "source": "kr_stocks",
+  "symbol": "005930",
+  "name": "Samsung Electronics",
+  "type": "OHLCV",
+  "timezone": "KST",
+  "currency": "KRW",
+  "seed_price": 71400,
+  "candles": []
+}

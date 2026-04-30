@@ -1,0 +1,10 @@
+{
+  "source": "etfs",
+  "symbol": "SPY",
+  "name": "SPDR S&P 500 ETF",
+  "type": "OHLCV",
+  "timezone": "UTC",
+  "currency": "USD",
+  "seed_price": 515,
+  "candles": []
+}

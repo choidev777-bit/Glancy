@@ -1,0 +1,10 @@
+{
+  "source": "global_indices",
+  "symbol": "^GSPC",
+  "name": "S&P 500",
+  "type": "OHLCV",
+  "timezone": "UTC",
+  "currency": "USD",
+  "seed_price": 5102,
+  "candles": []
+}

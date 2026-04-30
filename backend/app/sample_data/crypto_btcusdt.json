@@ -1,0 +1,10 @@
+{
+  "source": "crypto",
+  "symbol": "BTCUSDT",
+  "name": "Bitcoin",
+  "type": "OHLCV",
+  "timezone": "UTC",
+  "currency": "USD",
+  "seed_price": 45231,
+  "candles": []
+}

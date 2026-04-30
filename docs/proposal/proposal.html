@@ -1,0 +1,158 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>Glancy Hackathon Proposal</title><style>@page{size:A4;margin:0}html{background:#fbfaf6}body{font-family:'Noto Sans KR','Segoe UI',Arial,sans-serif;line-height:1.7;color:#172033;max-width:960px;margin:0 auto;padding:36px 48px;background:#fbfaf6;box-sizing:border-box}h1,h2,h3{line-height:1.25;color:#0f172a}h1{font-size:34px;margin-bottom:4px}h2{font-size:24px;margin-top:34px;border-bottom:2px solid #d8c7a0;padding-bottom:8px}h3{font-size:18px;margin-top:24px}p{margin:10px 0}table{width:100%;border-collapse:collapse;margin:16px 0;background:white;border-radius:14px;overflow:hidden;box-shadow:0 10px 30px rgba(15,23,42,.06)}th,td{border:1px solid #e6ddca;padding:10px 12px;text-align:left;vertical-align:top}th{background:#173b36;color:#fff}code{background:#efe7d5;padding:2px 5px;border-radius:5px}pre{background:#fffdf7;color:#10201e;border:1px solid #d8c7a0;padding:14px;border-radius:16px;overflow:visible;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;line-height:1.45}pre code{background:transparent;color:inherit;padding:0;border-radius:0;white-space:inherit;overflow-wrap:inherit}hr{border:0;border-top:1px solid #d8c7a0;margin:28px 0}ul{background:white;border:1px solid #eadfca;border-radius:14px;padding:16px 24px}.numbered{padding-left:12px;border-left:4px solid #c28b2c;background:#fffaf0;padding-top:8px;padding-bottom:8px}@media print{html,body{background:#fbfaf6}h2,h3{break-after:avoid-page}table,pre,ul,.numbered{break-inside:avoid;page-break-inside:avoid}tr{break-inside:avoid;page-break-inside:avoid}}</style></head><body><h1>월간 해커톤 기획서</h1>
+<h2>Skills.md 기반 범용 투자 데이터 대시보드 &mdash; Glancy</h2>
+<table><thead><tr><th>항목</th><th>내용</th></tr></thead><tbody><tr><td>팀명</td><td>weekend</td></tr>
+<tr><td>팀원</td><td>1인 팀</td></tr>
+<tr><td>제출일</td><td>2026-04-30</td></tr>
+<tr><td>대회명</td><td>월간 해커톤: 투자 데이터를 시각화하라</td></tr></tbody></table>
+<hr>
+<h2>1. 서비스 개요</h2>
+<h3>1-1. 제품명</h3>
+<p><strong>Glancy</strong> &mdash; Skills.md 기반 범용 투자 분석 대시보드</p>
+<p>Glancy는 "한눈에 본다"는 의미에서 지은 이름이다. 흩어진 투자 데이터, 지표, 차트, 인사이트를 한 화면에서 빠르게 파악하게 만든다는 제품 방향을 담고 있다.</p>
+<h3>1-2. 핵심 가치 제안</h3>
+<p><strong>한 줄 요약:</strong> Skills.md 문서가 곧 시스템이 되는 투자 분석 도구</p>
+<p>Glancy는 한국주식, 미국주식, ETF, 암호화폐, 글로벌지수, 사용자 업로드 데이터를 하나의 분석 체계로 처리하는 범용 투자 데이터 대시보드다. 사용자는 사전 연결된 카테고리 탭을 통해 즉시 시장 데이터를 분석할 수 있고, CSV/JSON 업로드를 통해 본인의 데이터도 같은 방식으로 분석할 수 있다.</p>
+<p>본 서비스는 다음 두 가지 시나리오를 모두 지원한다.</p>
+<p class="numbered">1. <strong>카테고리 탭으로 즉시 탐색</strong> &mdash; 한국주식 / 미국주식 / ETF / 암호화폐 / 글로벌지수 / 업로드 탭을 통해 별도 설정 없이 분석 시작</p>
+<p class="numbered">2. <strong>사용자 데이터 자동 분석</strong> &mdash; CSV/JSON 업로드 시 데이터 유형을 자동 감지하고, 유형에 맞는 분석과 시각화를 자동 생성</p>
+<h3>1-3. 차별점 &mdash; Skills.md를 런타임 설정 파일로 활용</h3>
+<p>일반적인 접근은 Skills.md를 "개발 시 AI에게 준 가이드 문서"로 사용하는 것이다. Glancy는 한 단계 더 나아가 Skills.md를 <strong>런타임 설정 파일</strong>처럼 사용한다.</p>
+<p>예를 들어 사용자가 <code>indicators.md</code>의 RSI 기준을 바꾸면 게이지와 인사이트가 새 기준으로 다시 계산되고, <code>theme.md</code>의 색상 토큰을 바꾸면 대시보드와 차트 스타일이 즉시 바뀐다. 이는 "문서가 시스템을 구동한다"는 것을 심사자가 직접 체험할 수 있는 구조다.</p>
+<h3>1-4. 타겟 사용자</h3>
+<ul><li>개인 투자자: 여러 자산군을 한 화면에서 비교하고 기술적/기본적 상태를 빠르게 판단</li><li>데이터 분석가: CSV/JSON 데이터셋을 업로드해 자동 시각화와 통계 분석 확인</li><li>투자 입문자: RSI, MACD, 이동평균, 밸류에이션 같은 숫자를 자연어 인사이트로 이해</li><li>심사자/참가자: 별도 API 키 없이 URL 접속만으로 대시보드와 Skills.md 기반 자동화를 확인</li></ul>
+<hr>
+<h2>2. 분석 흐름 설계</h2>
+<h3>2-1. 전체 데이터 파이프라인</h3>
+<pre><code>[입력]                    [Skills.md 모듈]              [출력]
+────────────────────────────────────────────────────────────────────
+카테고리 탭 선택      -&gt;   data.md           -&gt;   표준화된 MarketData
+또는 CSV/JSON 업로드       데이터 소스 레지스트리
+
+                      -&gt;   indicators.md     -&gt;   계산된 지표 + 시그널
+                           지표 계산 규칙
+
+                      -&gt;   insights.md       -&gt;   자연어 인사이트 텍스트
+                           규칙 기반 해석
+
+                      -&gt;   charts.md         -&gt;   ChartSpec + VisualizationBundle
+                           데이터 유형별 시각화 선택
+
+                      -&gt;   layout.md         -&gt;   페이지 구성
+                           반응형 / 상태 처리
+
+                      -&gt;   theme.md          -&gt;   디자인 토큰 적용
+                           다크/라이트/차트 색상
+
+                                             -&gt;   최종 대시보드 렌더링</code></pre>
+<h3>2-2. Orchestration &mdash; main.md</h3>
+<p><code>main.md</code>는 시스템 진입점이다. 사용자 입력이 사전 연결된 카테고리 탭인지, CSV/JSON 업로드인지에 따라 어떤 모듈을 어떤 순서로 호출할지 정의한다. 또한 데이터 실패, 지표 계산 실패, 데이터 유형 감지 실패 시 fallback 정책을 제공한다.</p>
+<h3>2-3. 분석 유형 분기</h3>
+<table><thead><tr><th>입력 유형</th><th>분석 종류</th><th>기본 시각화</th></tr></thead><tbody><tr><td>한국/미국 주식</td><td>기술적 분석 + 기본적 분석</td><td>캔들, MA, RSI, MACD, 게이지, 펀더멘털 카드</td></tr>
+<tr><td>ETF / 암호화폐 / 지수</td><td>기술적 분석</td><td>캔들, MA, RSI, MACD, 피벗, 게이지</td></tr>
+<tr><td>OHLCV CSV</td><td>기술적 분석</td><td>캔들, 거래량, 지표 테이블</td></tr>
+<tr><td>포트폴리오 CSV</td><td>비중/집중도 분석</td><td>도넛 차트, 집중도 막대</td></tr>
+<tr><td>다종목 비교 CSV</td><td>상대 성과/상관관계 분석</td><td>정규화 수익률 라인, 상관관계 히트맵</td></tr>
+<tr><td>수익률 시계열 CSV</td><td>성과/위험 분석</td><td>누적수익률, MDD, 월별 수익률 히트맵</td></tr>
+<tr><td>가격 시계열 CSV</td><td>가격 흐름/낙폭 분석</td><td>area/line, drawdown</td></tr></tbody></table>
+<hr>
+<h2>3. 대시보드 구성</h2>
+<h3>3-1. UI 계층 구조</h3>
+<pre><code>[헤더] 로고 + 데모 안내 + 다크/라이트 토글
+──────────────────────────────────────────────────────────
+[카테고리 탭] 한국주식 | 미국주식 | ETF | 암호화폐 | 글로벌지수 | 업로드
+──────────────────────────────────────────────────────────
+[종목 정보] 종목명 / 현재가 / 등락률 / 거래량 / 시가총액 / 52주 고저
+──────────────────────────────────────────────────────────
+[분석 탭] 요약 | 기술적 분석 | 기본적 분석
+──────────────────────────────────────────────────────────
+[요약]        종합 게이지 + 인사이트 + 핵심 카드
+[기술적 분석] 게이지 3개 + 캔들차트 + RSI/MACD + 지표/피벗 테이블
+[기본적 분석] 밸류에이션 / 수익성 / 성장성 / 재무건전성 / 주주환원
+[업로드]      자동 감지 + 데이터 유형별 자동 시각화 대시보드</code></pre>
+<h3>3-2. 와우 모먼트</h3>
+<p class="numbered">1. <strong>카테고리 즉시 전환</strong> &mdash; 한국주식, 미국주식, ETF, 암호화폐, 글로벌지수를 같은 UI에서 탐색</p>
+<p class="numbered">2. <strong>실시간/준실시간 데이터</strong> &mdash; 암호화폐는 Binance WebSocket으로 실시간에 가깝게 갱신하고, 주식/ETF/지수는 카테고리 전환 시 최신 데이터를 조회하며 캐시/fallback으로 안정성을 확보</p>
+<p class="numbered">3. <strong>Skills.md 기반 자동 해석</strong> &mdash; 외부 LLM API 없이 규칙 기반 자연어 인사이트 생성</p>
+<p class="numbered">4. <strong>CSV 업로드 자동 분석</strong> &mdash; 데이터 유형 감지 후 동일 분석 시스템으로 처리</p>
+<p class="numbered">5. <strong>Visualization Intelligence</strong> &mdash; 업로드 데이터 유형에 따라 도넛, 히트맵, drawdown, 정규화 비교 차트 자동 선택</p>
+<p class="numbered">6. <strong>Skills Runtime Demo</strong> &mdash; <code>theme.md</code>, <code>indicators.md</code> 수정 시 대시보드가 즉시 변화</p>
+<h3>3-3. 사용자 파라미터 변경</h3>
+<p>이동평균 기간/크로스 기준, RSI, MACD, Stochastic, Bollinger Bands, Williams %R, CCI, ATR, ROC, OBV의 주요 기간과 임계값을 사용자가 즉석에서 변경할 수 있다. 변경값은 <code>indicators.md</code> 런타임 오버라이드로 처리되어 게이지, 지표 테이블, 차트 보조선, 인사이트가 다시 계산된다.</p>
+<h3>3-4. 데이터 소스</h3>
+<table><thead><tr><th>카테고리</th><th>데이터 소스</th><th>API 키</th></tr></thead><tbody><tr><td>한국 주식</td><td>pykrx + DART API</td><td>서버 환경변수로 관리, 심사자는 별도 키 불필요</td></tr>
+<tr><td>미국 주식</td><td>yfinance</td><td>불필요</td></tr>
+<tr><td>ETF</td><td>yfinance ETF</td><td>불필요</td></tr>
+<tr><td>암호화폐</td><td>Binance + CoinGecko</td><td>불필요</td></tr>
+<tr><td>글로벌 지수</td><td>yfinance (^KS11, ^GSPC 등)</td><td>불필요</td></tr>
+<tr><td>사용자 업로드</td><td>CSV/JSON</td><td>불필요</td></tr></tbody></table>
+<p>외부 API가 실패할 경우 sample fallback 데이터로 자동 전환하여 심사자가 기능을 계속 확인할 수 있도록 한다.</p>
+<hr>
+<h2>4. Skills.md 설계 방향</h2>
+<h3>4-1. 모듈화 구조</h3>
+<p>운영진 규정상 여러 개의 Skills.md 제출이 가능하고 기능별 구분이 권장되므로, Glancy는 다음 7개 모듈로 나눈다.</p>
+<pre><code>skills/
+├── main.md          # Orchestrator: 실행 흐름, 모듈 간 호출 정의
+├── data.md          # Data Layer: 6개 데이터 소스 통합, 표준화
+├── indicators.md    # Computation Layer: 기술/기본 지표 계산 규칙
+├── insights.md      # Narrative Layer: 규칙 기반 자연어 해석
+├── charts.md        # Visualization Layer: 데이터 유형 -&gt; ChartSpec 매핑
+├── layout.md        # Composition Layer: 페이지 배치, 반응형, 상태 처리
+└── theme.md         # Design Token Layer: 색/폰트/간격, 라이트/다크</code></pre>
+<h3>4-2. 의존성 그래프</h3>
+<pre><code>main.md
+  └─ data.md
+       └─ indicators.md
+            └─ insights.md
+                 └─ charts.md
+                      └─ layout.md ← theme.md
+                           └─ Final Dashboard</code></pre>
+<h3>4-3. 모듈별 책임 요약</h3>
+<table><thead><tr><th>모듈</th><th>책임</th><th>입력</th><th>출력</th></tr></thead><tbody><tr><td>main.md</td><td>실행 흐름 정의</td><td>사용자 시나리오</td><td>모듈 호출 시퀀스</td></tr>
+<tr><td>data.md</td><td>입력 정규화</td><td>카테고리/업로드</td><td>MarketData</td></tr>
+<tr><td>indicators.md</td><td>지표 계산</td><td>MarketData</td><td>지표값 + 시그널</td></tr>
+<tr><td>insights.md</td><td>자연어 해석</td><td>지표 + 시그널</td><td>Insights[]</td></tr>
+<tr><td>charts.md</td><td>시각화 선택</td><td>데이터 유형 + 지표</td><td>ChartSpec[]</td></tr>
+<tr><td>layout.md</td><td>화면 구성</td><td>ChartSpec + Insights</td><td>LayoutSpec</td></tr>
+<tr><td>theme.md</td><td>디자인 토큰</td><td>정적/런타임 설정</td><td>CSS 변수 / 차트 토큰</td></tr></tbody></table>
+<h3>4-4. charts.md &mdash; 설명 가능한 자동 시각화</h3>
+<p><code>charts.md</code>는 단순히 "어떤 차트를 쓸지"를 나열하지 않는다. 데이터 유형을 감지하고, 각 유형에 맞는 시각화 묶음을 자동 선택한다. 모든 ChartSpec은 <code>reason</code>과 <code>skillsRule</code>을 포함한다.</p>
+<table><thead><tr><th>데이터 유형</th><th>자동 선택 차트</th><th>이유</th></tr></thead><tbody><tr><td>OHLCV</td><td>candle + MA + volume + RSI + MACD</td><td>가격/추세/모멘텀 동시 판단</td></tr>
+<tr><td>portfolio</td><td>donut + concentration bar</td><td>비중과 쏠림 확인</td></tr>
+<tr><td>multi_asset</td><td>normalized comparison + correlation heatmap</td><td>상대 성과와 분산 효과 확인</td></tr>
+<tr><td>returns</td><td>cumulative return + drawdown + monthly heatmap</td><td>성과, 위험, 계절성 확인</td></tr>
+<tr><td>price_series</td><td>area/line + drawdown</td><td>가격 흐름과 낙폭 확인</td></tr></tbody></table>
+<h3>4-5. 인사이트 생성 &mdash; 외부 LLM API 미사용</h3>
+<p><code>insights.md</code>는 IF/THEN 규칙과 텍스트 템플릿으로 구성된다.</p>
+<pre><code>IF RSI &lt; 20  -&gt; "RSI {value}. 극단적 과매도, 반등 가능성 높음."
+IF RSI 70~80 -&gt; "RSI {value}. 과매수 구간. 단기 조정 가능성."
+IF MA5 &gt; MA20 &gt; MA60 -&gt; "이동평균 정배열로 상승 추세가 유지됩니다."</code></pre>
+<p>이 방식은 API 비용이 없고, 응답이 빠르며, Skills.md 자체가 분석 지능으로 동작한다는 점을 직접 보여준다.</p>
+<hr>
+<h2>5. 평가 기준 매핑</h2>
+<table><thead><tr><th>항목</th><th>배점</th><th>Glancy의 대응</th></tr></thead><tbody><tr><td>범용성</td><td>25</td><td>6개 카테고리 + 5종 CSV/JSON 자동 감지 + 표준 MarketData + sample fallback</td></tr>
+<tr><td>Skills.md 설계</td><td>25</td><td>7개 모듈, main.md orchestrator, charts.md/indicators.md/theme.md 런타임 적용</td></tr>
+<tr><td>대시보드 자동 생성</td><td>25</td><td>데이터 입력 후 지표/인사이트/ChartSpec/레이아웃 자동 생성</td></tr>
+<tr><td>바이브코딩 활용</td><td>15</td><td>Skills.md -&gt; 코드 매핑표, 프롬프트 로그, 재빌드 절차로 증거화</td></tr>
+<tr><td>실용성/창의성</td><td>10</td><td>실시간 업데이트, 자동 시각화, 업로드 분석, 다크/라이트, 장애 fallback</td></tr></tbody></table>
+<h3>5-1. 바이브코딩 증거화 방식</h3>
+<p>개발 과정에서는 각 Skills.md 규칙이 어떤 코드 파일과 UI 기능으로 변환되었는지 매핑표로 기록한다. 또한 주요 프롬프트 로그와 재빌드 절차를 함께 정리하여, 결과물뿐 아니라 문서 기반 바이브 코딩 과정 자체를 재현 가능하게 증명한다.</p>
+<hr>
+<h2>6. 확장 기능 아이디어</h2>
+<p>Glancy의 확장 방향은 단순 기능 추가가 아니라, Skills.md 모듈을 교체하거나 추가하면 같은 데이터/지표/시각화 엔진 위에서 새로운 투자 분석 방식이 열리는 구조를 목표로 한다.</p>
+<table><thead><tr><th>확장 기능</th><th>설명</th><th>연결되는 Skills.md</th></tr></thead><tbody><tr><td>투자 성향별 Skills 세트</td><td>보수적/공격적/단기/장기 투자 관점별 지표 기준, 가중치, 인사이트 문구를 교체한다.</td><td><code>indicators.md</code>, <code>insights.md</code>, <code>theme.md</code></td></tr>
+<tr><td>포트폴리오 리밸런싱 분석</td><td>업로드 포트폴리오의 비중 쏠림, 과거 성과, 리밸런싱 전후 위험/수익 변화를 비교한다.</td><td><code>data.md</code>, <code>charts.md</code>, <code>insights.md</code></td></tr>
+<tr><td>알림 규칙 엔진</td><td><code>insights.md</code>의 조건식을 가격, 지표, 변동성 알림 트리거로 확장한다.</td><td><code>insights.md</code>, <code>indicators.md</code></td></tr>
+<tr><td>다중 종목 비교 뷰</td><td>2~4개 종목의 기술 지표, 기본 지표, 상관관계, 상대 수익률을 한 화면에서 비교한다.</td><td><code>data.md</code>, <code>charts.md</code>, <code>layout.md</code></td></tr>
+<tr><td>다국어 인사이트</td><td><code>insights.md</code> 템플릿을 한국어/영어/일본어 등으로 전환해 글로벌 사용자에게 제공한다.</td><td><code>insights.md</code></td></tr>
+<tr><td>사용자 정의 Skills 업로드</td><td>사용자가 직접 작성한 Skills.md 번들을 업로드해 대시보드의 분석 기준과 화면 구성을 바꾼다.</td><td><code>main.md</code>, <code>layout.md</code>, <code>theme.md</code></td></tr></tbody></table>
+<p>이 로드맵은 해커톤 제출 이후에도 현재 아키텍처를 버리지 않고 확장할 수 있음을 보여준다. 즉, Glancy의 핵심 자산은 특정 차트 몇 개가 아니라 “문서화된 분석 규칙을 실행 가능한 대시보드로 바꾸는 구조”다.</p>
+<hr>
+<h2>7. 팀 구성</h2>
+<table><thead><tr><th>역할</th><th>담당</th></tr></thead><tbody><tr><td>Product / Planning</td><td>1인 팀</td></tr>
+<tr><td>Skills.md 설계</td><td>1인 팀</td></tr>
+<tr><td>Frontend / Visualization</td><td>1인 팀</td></tr>
+<tr><td>Backend / Data Pipeline</td><td>1인 팀</td></tr>
+<tr><td>QA / Deployment</td><td>1인 팀</td></tr></tbody></table>
+<hr>
+<h2>8. 기대 효과</h2>
+<p>Glancy는 투자 데이터를 단순히 보여주는 대시보드가 아니다. <code>Skills.md</code>가 데이터 처리, 지표 계산, 자연어 해석, 시각화 선택, 화면 구성, 디자인 토큰까지 지배하는 구조를 가진다. 따라서 본 프로젝트는 해커톤의 핵심인 Skills.md 설계, 대시보드 자동 생성, 바이브 코딩 활용, 실용적 시각화를 한 번에 증명한다.</p></body></html>

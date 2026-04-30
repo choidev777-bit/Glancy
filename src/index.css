@@ -1,0 +1,128 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root[data-theme="dark"] {
+  --bg-page: #0a0a0a;
+  --surface-1: #121212;
+  --surface-2: #1a1a1a;
+  --surface-3: #222222;
+  --surface-4: #2a2a2a;
+
+  --text-primary: #fafafa;
+  --text-secondary: #a3a3a3;
+  --text-tertiary: #737373;
+
+  --positive: #22c55e;
+  --positive-bright: #4ade80;
+  --negative: #ef4444;
+  --negative-bright: #f87171;
+  --warning: #f59e0b;
+  --info: #3b82f6;
+  --neutral: #a3a3a3;
+
+  --brand-primary: #06b6d4;
+  --brand-secondary: #0891b2;
+
+  --border-default: #262626;
+  --border-strong: #404040;
+
+  --shadow-subtle: rgba(0,0,0,0.3) 0px 2px 4px;
+  --shadow-medium: rgba(0,0,0,0.4) 0px 4px 12px;
+  --shadow-heavy: rgba(0,0,0,0.6) 0px 8px 24px;
+}
+
+:root[data-theme="light"] {
+  --bg-page: #fafafa;
+  --surface-1: #ffffff;
+  --surface-2: #f5f5f5;
+  --surface-3: #e5e5e5;
+  --surface-4: #d4d4d4;
+
+  --text-primary: #0a0a0a;
+  --text-secondary: #525252;
+  --text-tertiary: #737373;
+
+  --positive: #16a34a;
+  --positive-bright: #15803d;
+  --negative: #dc2626;
+  --negative-bright: #b91c1c;
+  --neutral: #737373;
+
+  --brand-primary: #0891b2;
+  --brand-secondary: #0e7490;
+
+  --border-default: #e5e5e5;
+  --border-strong: #a3a3a3;
+
+  --shadow-subtle: rgba(0,0,0,0.04) 0px 2px 4px;
+  --shadow-medium: rgba(0,0,0,0.08) 0px 4px 12px;
+  --shadow-heavy: rgba(0,0,0,0.15) 0px 8px 24px;
+}
+
+@layer base {
+  body {
+    @apply bg-background text-text-primary font-sans antialiased;
+    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+
+  /* Tabular figures for numbers */
+  .font-tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-surface-2 rounded-card shadow-subtle border border-border overflow-hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .card:hover {
+    @apply shadow-medium;
+  }
+
+  .btn-primary {
+    @apply bg-brand-primary text-[#0a0a0a] px-5 py-2.5 rounded-card font-semibold hover:bg-brand-secondary transition-colors;
+  }
+
+  .btn-secondary {
+    @apply bg-transparent text-text-primary px-5 py-2.5 rounded-card font-semibold border border-border-strong hover:bg-surface-3 transition-colors;
+  }
+
+  .tab-pill {
+    @apply px-5 py-2 rounded-pill font-semibold transition-colors cursor-pointer;
+  }
+
+  .tab-pill-active {
+    @apply bg-surface-4 text-text-primary;
+  }
+
+  .tab-pill-inactive {
+    @apply bg-transparent text-text-secondary hover:text-text-primary;
+  }
+
+  .tab-category {
+    @apply px-5 py-3 font-semibold transition-colors cursor-pointer border-b-2 border-transparent;
+  }
+
+  .tab-category-active {
+    @apply text-brand-primary border-brand-primary;
+  }
+
+  .tab-category-inactive {
+    @apply text-text-secondary hover:bg-surface-3 hover:text-text-primary;
+  }
+}

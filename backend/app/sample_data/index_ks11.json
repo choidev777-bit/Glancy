@@ -1,0 +1,10 @@
+{
+  "source": "global_indices",
+  "symbol": "^KS11",
+  "name": "KOSPI Composite Index",
+  "type": "OHLCV",
+  "timezone": "UTC",
+  "currency": "POINT",
+  "seed_price": 2674,
+  "candles": []
+}

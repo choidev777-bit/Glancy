@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+backend/.venv/
+
+# Build outputs
+dist/
+build/
+
+# Local environment and secrets
+.env
+.env.*
+backend/.env
+backend/.env.*
+!.env.example
+!.env.*.example
+!backend/.env.example
+!backend/.env.*.example
+
+# Python cache/test artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+pytest-cache-files-*/
+backend/pytest-cache-files-*/
+backend/pytest-cache-files-*
+**/pytest-cache-files-*/
+**/pytest-cache-files-*
+*.egg-info/
+
+# Local logs and temp files
+*.log
+.tmp/
