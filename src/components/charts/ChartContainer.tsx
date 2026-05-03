@@ -55,6 +55,7 @@ export default function ChartContainer({
   const [activeMainIndicators, setActiveMainIndicators] = useState<MainIndicatorId[]>(['bollinger', 'volume']);
   const [activePanels, setActivePanels] = useState<PaneIndicatorId[]>(['rsi', 'macd']);
   const [maAddRequestId, setMaAddRequestId] = useState(0);
+  const [maCount, setMaCount] = useState(0);
   const liveCandle = useBinanceWebSocket(
     enableRealtimeCandle && category === CRYPTO_CATEGORY && symbol ? symbol : null,
     binanceIntervalForTimeframe(timeframe),
@@ -86,9 +87,6 @@ export default function ChartContainer({
         <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h3 className="font-bold">캔들 차트</h3>
-            <p className="text-[11px] text-text-tertiary">
-              캔들 + MA + 볼린저 밴드, 거래량과 하단 지표 {activePanels.length}개 표시
-            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -105,8 +103,11 @@ export default function ChartContainer({
             {[...MAIN_INDICATOR_OPTIONS, ...PANE_INDICATOR_OPTIONS].map((option) => {
               const isMain = MAIN_INDICATOR_OPTIONS.some((item) => item.id === option.id);
               const isActive = isMain
-                ? option.id !== 'ma' && activeMainIndicators.includes(option.id as MainIndicatorId)
+                ? option.id === 'ma'
+                  ? maCount > 0
+                  : activeMainIndicators.includes(option.id as MainIndicatorId)
                 : activePanels.includes(option.id as PaneIndicatorId);
+              const label = option.id === 'ma' && maCount > 0 ? `MA 추가 (${maCount}개)` : option.label;
               return (
                 <button
                   key={option.id}
@@ -124,7 +125,7 @@ export default function ChartContainer({
                       : 'border-border bg-surface-2 text-text-secondary hover:border-brand-primary/60'
                   }`}
                 >
-                  <span className="block text-xs font-bold">{option.label}</span>
+                  <span className="block text-xs font-bold">{label}</span>
                   <span className="text-[10px] text-text-tertiary">{option.description}</span>
                 </button>
               );
@@ -143,6 +144,7 @@ export default function ChartContainer({
           maAddRequestId={maAddRequestId}
           onToggleMainIndicator={toggleMainIndicator}
           onTogglePaneIndicator={togglePaneIndicator}
+          onMaCountChange={setMaCount}
         />
         <VisualizationReason
           reason="OHLCV 데이터는 가격 흐름과 지표를 같은 시간축에서 비교해야 하므로, 메인 차트 지표와 하단 pane 지표를 함께 보여줍니다."

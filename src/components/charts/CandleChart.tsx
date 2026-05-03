@@ -12,7 +12,7 @@ import {
   Time,
   createChart,
 } from 'lightweight-charts';
-import { ChevronDown, ChevronUp, Settings, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Settings, Trash2, X } from 'lucide-react';
 import type { Candle, RuntimeIndicatorParams } from '../../lib/api';
 import { getCandleColors, getChartTheme, getMAColors } from '../../lib/chart-theme';
 import {
@@ -34,7 +34,7 @@ export type IndicatorPanelId = PaneIndicatorId;
 
 type MaIndicatorPanelId = `ma:${string}`;
 type ChartIndicatorId = MainIndicatorId | PaneIndicatorId | MaIndicatorPanelId;
-type SettingsTab = 'inputs' | 'style' | 'visibility';
+type SettingsTab = 'inputs' | 'style';
 type ModalPosition = { x: number; y: number };
 type ModalDragState = {
   startClientX: number;
@@ -54,6 +54,7 @@ interface CandleChartProps {
   maAddRequestId?: number;
   onToggleMainIndicator?: (indicator: MainIndicatorId) => void;
   onTogglePaneIndicator?: (indicator: PaneIndicatorId) => void;
+  onMaCountChange?: (count: number) => void;
 }
 
 interface LegendItem {
@@ -226,10 +227,6 @@ function indicatorTitle(indicator: ChartIndicatorId): string {
   return titles[indicator];
 }
 
-function isMainIndicator(indicator: ChartIndicatorId): indicator is MainIndicatorId {
-  return indicator === 'ma' || indicator === 'bollinger' || indicator === 'volume';
-}
-
 type NonMaSettingsIndicator = Exclude<ChartIndicatorId, MaIndicatorPanelId | 'ma'>;
 
 function isMaSettingsPanel(indicator: ChartIndicatorId | null): indicator is MaIndicatorPanelId {
@@ -329,15 +326,6 @@ function ColorField({ label, value, onChange }: { label: string; value: string; 
   );
 }
 
-function ToggleField({ checked, onChange }: { checked: boolean; onChange: () => void }) {
-  return (
-    <label className="flex items-center justify-between gap-3 text-sm text-text-secondary">
-      <span>차트에 표시</span>
-      <input type="checkbox" checked={checked} onChange={onChange} className="h-4 w-4 accent-accent" />
-    </label>
-  );
-}
-
 function LegendRow({
   top,
   title,
@@ -346,6 +334,7 @@ function LegendRow({
   compact = false,
   isSettingsOpen = false,
   onOpenSettings,
+  onRemove,
 }: {
   top: number;
   title: string;
@@ -354,6 +343,7 @@ function LegendRow({
   compact?: boolean;
   isSettingsOpen?: boolean;
   onOpenSettings?: (panel: ChartIndicatorId) => void;
+  onRemove?: (panel: ChartIndicatorId) => void;
 }) {
   return (
     <div
@@ -373,6 +363,17 @@ function LegendRow({
           onClick={() => onOpenSettings?.(panelId)}
         >
           <Settings size={12} />
+        </button>
+      )}
+      {panelId && onRemove && (
+        <button
+          type="button"
+          aria-label={`${title} 제거`}
+          title={`${title} 제거`}
+          className="pointer-events-auto rounded border border-border/80 bg-surface/80 px-1 py-0.5 text-text-tertiary transition-colors hover:border-state-negative hover:text-state-negative"
+          onClick={() => onRemove(panelId)}
+        >
+          <Trash2 size={12} />
         </button>
       )}
       {items.map((item) => (
@@ -396,6 +397,7 @@ export default function CandleChart({
   maAddRequestId = 0,
   onToggleMainIndicator,
   onTogglePaneIndicator,
+  onMaCountChange,
 }: CandleChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -407,6 +409,9 @@ export default function CandleChart({
   const [isLegendExpanded, setIsLegendExpanded] = useState(false);
   const [chartSettings, setChartSettings] = useState<ChartIndicatorSettings>(cloneChartSettings(DEFAULT_CHART_SETTINGS));
   const [maInstances, setMaInstances] = useState<MaInstance[]>(() => createInitialMaInstances(enabledMAs, getMAColors(theme)));
+  useEffect(() => {
+    onMaCountChange?.(maInstances.length);
+  }, [maInstances.length, onMaCountChange]);
   const [draftMaInstances, setDraftMaInstances] = useState<MaInstance[]>([]);
   const [activeSettingsPanel, setActiveSettingsPanel] = useState<ChartIndicatorId | null>(null);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('inputs');
@@ -857,18 +862,6 @@ export default function CandleChart({
     setIsLegendExpanded((current) => !current);
   };
 
-  const toggleDraftMainIndicator = (indicator: MainIndicatorId) => {
-    setDraftMainIndicators((current) =>
-      current.includes(indicator) ? current.filter((item) => item !== indicator) : [...current, indicator],
-    );
-  };
-
-  const toggleDraftPaneIndicator = (indicator: PaneIndicatorId) => {
-    setDraftPaneIndicators((current) =>
-      current.includes(indicator) ? current.filter((item) => item !== indicator) : [...current, indicator],
-    );
-  };
-
   const updateDraft = (updater: (settings: ChartIndicatorSettings) => ChartIndicatorSettings) => {
     setDraftSettings((current) => (current ? updater(current) : current));
   };
@@ -878,8 +871,7 @@ export default function CandleChart({
   };
 
   const deleteActiveMaInstance = (id: string) => {
-    const next = maInstances.filter((instance) => instance.id !== id);
-    setMaInstances(next.length ? next : [createMaInstance('ma-5-reset', 5, themeMaColors[0])]);
+    setMaInstances((current) => current.filter((instance) => instance.id !== id));
     closeSettingsModal();
   };
 
@@ -965,7 +957,6 @@ export default function CandleChart({
           {[
             ['inputs', '입력'],
             ['style', '모습'],
-            ['visibility', '보임'],
           ].map(([id, label]) => (
             <button
               key={id}
@@ -1092,20 +1083,6 @@ export default function CandleChart({
               {activeSettingsPanel === 'obv' && <ColorField label="선 색상" value={modalSettings.obv.lineColor} onChange={(value) => updateDraft((current) => ({ ...current, obv: { ...current.obv, lineColor: value } }))} />}
             </>
           )}
-          {settingsTab === 'visibility' &&
-            (activeDraftMa ? (
-              <ToggleField
-                checked={activeDraftMa.visible}
-                onChange={() => updateDraftMaInstance(activeDraftMa.id, (instance) => ({ ...instance, visible: !instance.visible }))}
-              />
-            ) : isMainIndicator(activeSettingsPanel) ? (
-              <ToggleField checked={draftMainIndicators.includes(activeSettingsPanel)} onChange={() => toggleDraftMainIndicator(activeSettingsPanel)} />
-            ) : (
-              <ToggleField
-                checked={draftPaneIndicators.includes(activeSettingsPanel as PaneIndicatorId)}
-                onChange={() => toggleDraftPaneIndicator(activeSettingsPanel as PaneIndicatorId)}
-              />
-            ))}
         </div>
         <div className="flex items-center justify-between border-t border-border bg-surface-2 px-5 py-4">
           <button
@@ -1185,6 +1162,7 @@ export default function CandleChart({
                 panelId={maPanelId(item.id ?? '')}
                 isSettingsOpen={activeSettingsPanel === maPanelId(item.id ?? '')}
                 onOpenSettings={openSettingsPanel}
+                onRemove={() => deleteActiveMaInstance(item.id ?? '')}
               />
             ))}
           {isBollingerEnabled && (
@@ -1195,33 +1173,36 @@ export default function CandleChart({
               panelId="bollinger"
               isSettingsOpen={activeSettingsPanel === 'bollinger'}
               onOpenSettings={openSettingsPanel}
+              onRemove={() => onToggleMainIndicator?.('bollinger')}
             />
           )}
-          {isVolumeEnabled && (
-            <LegendRow
-              top={pricePaneHeight + 10}
-              title="거래량"
-              compact
-              items={[{ label: '', color: '#22c55e', value: volumeValue }]}
-              panelId="volume"
-              isSettingsOpen={activeSettingsPanel === 'volume'}
-              onOpenSettings={openSettingsPanel}
-            />
-          )}
-          {paneLegendItems.map((legend, index) => (
-            <LegendRow
-              key={legend.id}
-              top={pricePaneHeight + volumePaneHeight + index * 120 + 10}
-              title={legend.label}
-              compact={legend.compact}
-              items={legend.items}
-              panelId={legend.id}
-              isSettingsOpen={activeSettingsPanel === legend.id}
-              onOpenSettings={openSettingsPanel}
-            />
-          ))}
         </>
       )}
+      {isVolumeEnabled && (
+        <LegendRow
+          top={pricePaneHeight + 10}
+          title="거래량"
+          compact
+          items={[{ label: '', color: '#22c55e', value: volumeValue }]}
+          panelId="volume"
+          isSettingsOpen={activeSettingsPanel === 'volume'}
+          onOpenSettings={openSettingsPanel}
+          onRemove={() => onToggleMainIndicator?.('volume')}
+        />
+      )}
+      {paneLegendItems.map((legend, index) => (
+        <LegendRow
+          key={legend.id}
+          top={pricePaneHeight + volumePaneHeight + index * 120 + 10}
+          title={legend.label}
+          compact={legend.compact}
+          items={legend.items}
+          panelId={legend.id}
+          isSettingsOpen={activeSettingsPanel === legend.id}
+          onOpenSettings={openSettingsPanel}
+          onRemove={() => onTogglePaneIndicator?.(legend.id as PaneIndicatorId)}
+        />
+      ))}
       {settingsModal}
       <div ref={containerRef} style={{ width: '100%', height }} />
     </div>
