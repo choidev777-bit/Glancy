@@ -30,3 +30,6 @@ backend/pytest-cache-files-*
 # Local logs and temp files
 *.log
 .tmp/
+
+# Claude Code worktrees
+.claude/worktrees/

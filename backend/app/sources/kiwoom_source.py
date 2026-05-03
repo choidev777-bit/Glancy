@@ -12,6 +12,8 @@ from app.models import Candle, MarketData, StockQuote
 from app.reliability.status import attach_status
 
 _TOKEN: dict[str, Any] = {"value": None, "expires_at": None}
+_SESSION = requests.Session()
+_SESSION.trust_env = False
 
 
 def is_kiwoom_configured() -> bool:
@@ -20,6 +22,11 @@ def is_kiwoom_configured() -> bool:
 
 def get_kiwoom_status() -> str:
     return "configured" if is_kiwoom_configured() else "missing_env"
+
+
+def clear_access_token() -> None:
+    _TOKEN["value"] = None
+    _TOKEN["expires_at"] = None
 
 
 def _clean_number(value: Any) -> float | None:
@@ -59,7 +66,7 @@ def get_access_token() -> str:
     if _TOKEN["value"] and _TOKEN["expires_at"] and _TOKEN["expires_at"] > now + timedelta(minutes=5):
         return str(_TOKEN["value"])
 
-    response = requests.post(
+    response = _SESSION.post(
         f"{settings.effective_kiwoom_base_url}/oauth2/token",
         json={
             "grant_type": "client_credentials",
@@ -80,9 +87,15 @@ def get_access_token() -> str:
     return str(token)
 
 
-def _post(api_id: str, endpoint: str, body: dict[str, Any]) -> dict[str, Any]:
+def _is_token_invalid(payload: dict[str, Any]) -> bool:
+    return_code = str(payload.get("return_code") or "")
+    return_msg = str(payload.get("return_msg") or "")
+    return return_code == "8005" or "8005" in return_msg or ("Token" in return_msg and "유효" in return_msg)
+
+
+def _post(api_id: str, endpoint: str, body: dict[str, Any], retry_on_token_error: bool = True) -> dict[str, Any]:
     token = get_access_token()
-    response = requests.post(
+    response = _SESSION.post(
         f"{settings.effective_kiwoom_base_url}{endpoint}",
         json=body,
         headers={
@@ -96,6 +109,9 @@ def _post(api_id: str, endpoint: str, body: dict[str, Any]) -> dict[str, Any]:
     payload = response.json()
     return_code = payload.get("return_code")
     if return_code not in (None, 0, "0"):
+        if retry_on_token_error and _is_token_invalid(payload):
+            clear_access_token()
+            return _post(api_id, endpoint, body, retry_on_token_error=False)
         raise RuntimeError(payload.get("return_msg") or f"Kiwoom API {api_id} failed")
     return payload
 

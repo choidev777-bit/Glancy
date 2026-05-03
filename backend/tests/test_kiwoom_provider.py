@@ -44,6 +44,43 @@ def test_kiwoom_quote_normalizes_basic_info_response():
     assert quote.meta["source_name"] == "kiwoom"
 
 
+def test_kiwoom_session_ignores_proxy_environment(monkeypatch):
+    monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:9")
+
+    assert kiwoom_source._SESSION.trust_env is False
+
+
+def test_kiwoom_post_retries_once_when_token_is_invalid(monkeypatch):
+    monkeypatch.setattr(kiwoom_source, "get_access_token", lambda: "token")
+    kiwoom_source._TOKEN["value"] = "stale-token"
+    kiwoom_source._TOKEN["expires_at"] = object()
+    calls = []
+
+    class Response:
+        def __init__(self, payload):
+            self.payload = payload
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return self.payload
+
+    def fake_post(*args, **kwargs):
+        calls.append((args, kwargs))
+        if len(calls) == 1:
+            return Response({"return_code": "8005", "return_msg": "인증에 실패했습니다[8005:Token이 유효하지 않습니다]"})
+        return Response({"return_code": 0, "cur_prc": "71400"})
+
+    monkeypatch.setattr(kiwoom_source._SESSION, "post", fake_post)
+
+    payload = kiwoom_source._post("ka10001", "/api/dostk/stkinfo", {"stk_cd": "005930"})
+
+    assert payload["cur_prc"] == "71400"
+    assert len(calls) == 2
+    assert kiwoom_source._TOKEN == {"value": None, "expires_at": None}
+
+
 def test_kr_quote_endpoint_returns_kiwoom_quote(monkeypatch):
     monkeypatch.setattr(
         kiwoom_source,
@@ -159,7 +196,7 @@ def test_kiwoom_daily_chart_filters_to_calendar_days(monkeypatch):
 
         return Response()
 
-    monkeypatch.setattr(kiwoom_source.requests, "post", fake_post)
+    monkeypatch.setattr(kiwoom_source._SESSION, "post", fake_post)
 
     data = kiwoom_source.get_kiwoom_daily_ohlcv("356680", days=365)
 

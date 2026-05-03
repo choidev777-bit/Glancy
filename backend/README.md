@@ -9,8 +9,10 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
 copy .env.example .env
-uvicorn app.main:app --reload --port 8000
+.\start-backend.ps1
 ```
+
+`start-backend.ps1` clears local proxy environment variables before starting Uvicorn so Kiwoom REST API calls can connect directly.
 
 ## Endpoints
 
@@ -33,4 +35,3 @@ Market responses include `meta.data_status`:
 | `live` | Fresh external API data |
 | `cached` | Recent cached response |
 | `sample` | Demo fallback data |
-

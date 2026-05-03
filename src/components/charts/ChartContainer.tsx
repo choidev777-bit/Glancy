@@ -4,7 +4,7 @@ import type { Candle, RuntimeIndicatorParams } from '../../lib/api';
 import { useBinanceWebSocket } from '../../hooks/useBinanceWebSocket';
 import { CRYPTO_CATEGORY } from '../../lib/market-selection';
 import { binanceIntervalForTimeframe, DEFAULT_CHART_TIMEFRAME, type ChartTimeframe } from '../../lib/timeframes';
-import CandleChart, { IndicatorPanelId } from './CandleChart';
+import CandleChart, { MainIndicatorId, PaneIndicatorId } from './CandleChart';
 import VisualizationReason from './VisualizationReason';
 
 interface ChartContainerProps {
@@ -17,7 +17,13 @@ interface ChartContainerProps {
   enableRealtimeCandle?: boolean;
 }
 
-const INDICATOR_PANEL_OPTIONS: { id: IndicatorPanelId; label: string; description: string }[] = [
+const MAIN_INDICATOR_OPTIONS: { id: MainIndicatorId; label: string; description: string }[] = [
+  { id: 'ma', label: 'MA 추가', description: '이동평균선 1개 추가' },
+  { id: 'bollinger', label: 'Bollinger Bands', description: '변동성 밴드' },
+  { id: 'volume', label: 'Volume', description: '거래량 pane' },
+];
+
+const PANE_INDICATOR_OPTIONS: { id: PaneIndicatorId; label: string; description: string }[] = [
   { id: 'rsi', label: 'RSI', description: '과매수/과매도' },
   { id: 'macd', label: 'MACD', description: '추세 전환' },
   { id: 'stochastic', label: 'Stochastic', description: '단기 모멘텀' },
@@ -45,18 +51,26 @@ export default function ChartContainer({
   timeframe = DEFAULT_CHART_TIMEFRAME,
   enableRealtimeCandle = true,
 }: ChartContainerProps) {
-  const [isPanelPickerOpen, setIsPanelPickerOpen] = useState(false);
-  const [activePanels, setActivePanels] = useState<IndicatorPanelId[]>(['rsi', 'macd']);
+  const [isIndicatorPickerOpen, setIsIndicatorPickerOpen] = useState(false);
+  const [activeMainIndicators, setActiveMainIndicators] = useState<MainIndicatorId[]>(['bollinger', 'volume']);
+  const [activePanels, setActivePanels] = useState<PaneIndicatorId[]>(['rsi', 'macd']);
+  const [maAddRequestId, setMaAddRequestId] = useState(0);
   const liveCandle = useBinanceWebSocket(
     enableRealtimeCandle && category === CRYPTO_CATEGORY && symbol ? symbol : null,
     binanceIntervalForTimeframe(timeframe),
   );
-  const isRealtime = Boolean(liveCandle);
   const maPeriods = parseMaPeriods(runtimeParams?.ma_periods)?.slice(0, 4);
-  const maLabel = maPeriods?.length ? maPeriods.map((period) => `MA${period}`).join(' / ') : 'MA5 / MA20 / MA60';
-  const chartHeight = 420 + 96 + activePanels.length * 120;
+  const volumeHeight = activeMainIndicators.includes('volume') ? 96 : 0;
+  const chartHeight = 420 + volumeHeight + activePanels.length * 120;
 
-  const togglePanel = (panelId: IndicatorPanelId) => {
+  const toggleMainIndicator = (indicatorId: MainIndicatorId) => {
+    if (indicatorId === 'ma') return;
+    setActiveMainIndicators((current) =>
+      current.includes(indicatorId) ? current.filter((item) => item !== indicatorId) : [...current, indicatorId],
+    );
+  };
+
+  const togglePaneIndicator = (panelId: PaneIndicatorId) => {
     setActivePanels((current) =>
       current.includes(panelId) ? current.filter((item) => item !== panelId) : [...current, panelId],
     );
@@ -73,31 +87,37 @@ export default function ChartContainer({
           <div>
             <h3 className="font-bold">캔들 차트</h3>
             <p className="text-[11px] text-text-tertiary">
-              캔들 + {maLabel} + 볼린저 밴드, 거래량과 보조지표 {activePanels.length}개 표시
+              캔들 + MA + 볼린저 밴드, 거래량과 하단 지표 {activePanels.length}개 표시
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="rounded-pill bg-surface-3 px-3 py-1 text-[11px] font-bold text-text-tertiary">
-              {isRealtime ? 'Binance 실시간' : '일봉 데이터'}
-            </div>
             <button
               type="button"
-              onClick={() => setIsPanelPickerOpen((value) => !value)}
+              onClick={() => setIsIndicatorPickerOpen((value) => !value)}
               className="flex items-center gap-2 rounded-pill border border-border bg-surface-1 px-3 py-1 text-[11px] font-bold text-text-secondary transition-colors hover:border-brand-primary hover:text-text-primary"
             >
-              보조지표 {isPanelPickerOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              차트 지표 {isIndicatorPickerOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </button>
           </div>
         </div>
-        {isPanelPickerOpen && (
-          <div className="mb-4 grid grid-cols-2 gap-2 rounded-card border border-border bg-surface-1 p-3 md:grid-cols-4">
-            {INDICATOR_PANEL_OPTIONS.map((option) => {
-              const isActive = activePanels.includes(option.id);
+        {isIndicatorPickerOpen && (
+          <div className="mb-4 grid grid-cols-2 gap-2 rounded-card border border-border bg-surface-1 p-3 md:grid-cols-5">
+            {[...MAIN_INDICATOR_OPTIONS, ...PANE_INDICATOR_OPTIONS].map((option) => {
+              const isMain = MAIN_INDICATOR_OPTIONS.some((item) => item.id === option.id);
+              const isActive = isMain
+                ? option.id !== 'ma' && activeMainIndicators.includes(option.id as MainIndicatorId)
+                : activePanels.includes(option.id as PaneIndicatorId);
               return (
                 <button
                   key={option.id}
                   type="button"
-                  onClick={() => togglePanel(option.id)}
+                  onClick={() =>
+                    option.id === 'ma'
+                      ? setMaAddRequestId((value) => value + 1)
+                      : isMain
+                        ? toggleMainIndicator(option.id as MainIndicatorId)
+                        : togglePaneIndicator(option.id as PaneIndicatorId)
+                  }
                   className={`rounded-card border px-3 py-2 text-left transition-colors ${
                     isActive
                       ? 'border-brand-primary bg-brand-primary/10 text-text-primary'
@@ -115,13 +135,17 @@ export default function ChartContainer({
           candles={candles}
           latestCandle={liveCandle}
           enabledMAs={maPeriods}
+          mainIndicators={activeMainIndicators}
           indicatorPanels={activePanels}
           runtimeParams={runtimeParams}
           theme={theme}
           height={chartHeight}
+          maAddRequestId={maAddRequestId}
+          onToggleMainIndicator={toggleMainIndicator}
+          onTogglePaneIndicator={togglePaneIndicator}
         />
         <VisualizationReason
-          reason="OHLCV 데이터는 가격 흐름과 보조지표를 같은 시간축에서 비교해야 하므로, 캔들 아래에 RSI/MACD 등 보조지표 pane을 쌓아 보여줍니다."
+          reason="OHLCV 데이터는 가격 흐름과 지표를 같은 시간축에서 비교해야 하므로, 메인 차트 지표와 하단 pane 지표를 함께 보여줍니다."
           rule="charts.md: OHLCV -> candle"
         />
       </div>
