@@ -12,7 +12,7 @@ export type ChartType =
   | 'metrics'
   | 'table';
 
-export type VisualizationDataType = 'OHLCV' | 'price_series' | 'portfolio' | 'multi_asset' | 'returns';
+export type VisualizationDataType = 'OHLCV' | 'price_series' | 'portfolio' | 'multi_asset' | 'returns' | 'composite_portfolio';
 
 export interface ChartSpec {
   id: string;

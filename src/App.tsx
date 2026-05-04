@@ -1,8 +1,9 @@
 import { Suspense, lazy, useEffect, useState } from 'react';
 import Header from './components/layout/Header';
-import CategoryTabs from './components/dashboard/CategoryTabs';
+import CategoryTabs, { type TopLevelTab } from './components/dashboard/CategoryTabs';
 import AssetHeader from './components/dashboard/AssetHeader';
 import AnalysisTabs from './components/dashboard/AnalysisTabs';
+import CompositePortfolioDashboard from './components/dashboard/CompositePortfolioDashboard';
 import SummaryView from './components/analysis/SummaryView';
 import FundamentalView from './components/analysis/FundamentalView';
 import UploadView from './components/upload/UploadView';
@@ -11,6 +12,7 @@ import { useIndicators, useKrStockQuote, useMarketData } from './hooks/useIndica
 import type { AssetSearchResult, MarketData, RuntimeIndicatorParams, StockQuote } from './lib/api';
 import {
   assetFromSearchResult,
+  CATEGORIES,
   CRYPTO_CATEGORY,
   getDefaultAssetForCategory,
   getMarketRequest,
@@ -22,6 +24,7 @@ import {
 import { DEFAULT_CHART_TIMEFRAME, type ChartTimeframe } from './lib/timeframes';
 
 const TechnicalView = lazy(() => import('./components/analysis/TechnicalView'));
+const MARKET_CATEGORIES = CATEGORIES.filter((category) => category !== UPLOAD_CATEGORY);
 
 function assetWithMarketData(asset: DashboardAsset, data?: MarketData | null): DashboardAsset {
   if (!data?.candles?.length) return asset;
@@ -75,6 +78,7 @@ function assetWithLiveCandle(asset: DashboardAsset, liveCandle?: MarketData['can
 
 function App() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [activeTopTab, setActiveTopTab] = useState<TopLevelTab>('dashboard');
   const [activeCategory, setActiveCategory] = useState(KR_CATEGORY);
   const [activeAnalysisTab, setActiveAnalysisTab] = useState<'summary' | 'technical' | 'fundamental'>('summary');
   const [selectedAsset, setSelectedAsset] = useState<DashboardAsset | null>(null);
@@ -111,12 +115,14 @@ function App() {
   const handleCategoryChange = (category: string) => {
     setSelectedAsset(null);
     setActiveCategory(category);
+    setActiveAnalysisTab('summary');
   };
 
   const handleAssetSelect = (asset: AssetSearchResult) => {
     const nextAsset = assetFromSearchResult(asset);
     setSelectedAsset(nextAsset);
     setActiveCategory(nextAsset.category);
+    setActiveTopTab(nextAsset.category === UPLOAD_CATEGORY ? 'csv-upload' : 'asset-search');
     setActiveAnalysisTab(nextAsset.category === UPLOAD_CATEGORY ? 'summary' : activeAnalysisTab);
   };
 
@@ -131,11 +137,21 @@ function App() {
       <Header theme={theme} toggleTheme={toggleTheme} onAssetSelect={handleAssetSelect} />
 
       <main className="mx-auto max-w-[1440px]">
-        <CategoryTabs activeCategory={activeCategory} setActiveCategory={handleCategoryChange} />
+        <CategoryTabs
+          activeTopTab={activeTopTab}
+          setActiveTopTab={setActiveTopTab}
+          activeCategory={activeCategory}
+          setActiveCategory={handleCategoryChange}
+          marketCategories={MARKET_CATEGORIES}
+        />
 
-        {activeCategory === UPLOAD_CATEGORY ? (
-          <UploadView />
-        ) : (
+        {activeTopTab === 'dashboard' && <CompositePortfolioDashboard loadSample />}
+
+        {activeTopTab === 'csv-upload' && (
+          <UploadView key="csv-upload" defaultMode="upload" />
+        )}
+
+        {activeTopTab === 'asset-search' && (
           <>
             <AssetHeader asset={currentAsset} meta={currentMeta} loading={isHeaderLoading} />
 

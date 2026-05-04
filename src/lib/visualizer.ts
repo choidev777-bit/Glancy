@@ -7,155 +7,172 @@ export function createVisualizationBundle(dataType: VisualizationDataType): Visu
     case 'OHLCV':
       return {
         dataType,
-        summary: 'OHLCV data is visualized as price action plus trend, momentum, and conviction panels.',
+        summary: 'OHLCV 데이터는 가격 움직임, 추세, 모멘텀, 거래 확신도를 함께 볼 수 있는 차트 묶음으로 구성됩니다.',
         charts: [
           chart({
             id: 'ohlcv-candle',
             type: 'candle',
-            title: 'Candle + Moving Averages',
+            title: '캔들 + 이동평균',
             priority: 'primary',
             dataKey: 'market_data',
             encoding: { x: 'time', y: 'OHLC', color: 'direction' },
-            reason: 'OHLCV contains open, high, low, and close, so candle charts preserve intraperiod price structure.',
-            skillsRule: 'charts.md: OHLCV -> candle + MA overlay',
+            reason: '시가, 고가, 저가, 종가가 모두 있으므로 캔들 차트가 기간 안의 가격 구조를 가장 잘 보존합니다.',
+            skillsRule: 'charts.md: OHLCV -> 캔들 + 이동평균 오버레이',
           }),
           chart({
             id: 'ohlcv-rsi-macd',
             type: 'metrics',
-            title: 'Momentum Gauges',
+            title: '모멘텀 요약 지표',
             priority: 'secondary',
             dataKey: 'analysis',
             encoding: { y: 'gauges' },
-            reason: 'Technical signals need a fast summary for judges before they inspect the full table.',
-            skillsRule: 'charts.md: OHLCV -> RSI, MACD, gauge',
+            reason: '심사위원이 상세 표를 보기 전에 기술적 신호의 방향을 빠르게 파악할 수 있습니다.',
+            skillsRule: 'charts.md: OHLCV -> RSI, MACD, 게이지',
           }),
         ],
       };
     case 'price_series':
       return {
         dataType,
-        summary: 'Price series data emphasizes trend and downside risk rather than candle microstructure.',
+        summary: '가격 시계열 데이터는 캔들 구조보다 추세와 하락 위험을 중심으로 해석합니다.',
         charts: [
           chart({
             id: 'price-area',
             type: 'area',
-            title: 'Price Path',
+            title: '가격 흐름',
             priority: 'primary',
             dataKey: 'analysis',
             encoding: { x: 'time', y: 'close' },
-            reason: 'A simple price series lacks OHLC ranges, so a line/area chart is the clearest encoding.',
-            skillsRule: 'charts.md: price_series -> area/line',
+            reason: '단일 가격 시계열에는 고가/저가 범위가 없으므로 선형 흐름이 가장 명확합니다.',
+            skillsRule: 'charts.md: price_series -> 영역/라인 차트',
           }),
           chart({
             id: 'price-drawdown',
             type: 'drawdown',
-            title: 'Drawdown',
+            title: '낙폭',
             priority: 'secondary',
             dataKey: 'analysis',
             encoding: { x: 'time', y: 'drawdown' },
-            reason: 'Investors need downside risk beside price direction.',
-            skillsRule: 'charts.md: price_series -> drawdown',
+            reason: '투자자는 가격 방향과 함께 하락 위험을 함께 확인해야 합니다.',
+            skillsRule: 'charts.md: price_series -> 낙폭',
           }),
         ],
       };
     case 'portfolio':
       return {
         dataType,
-        summary: 'Portfolio data is visualized around allocation and concentration risk.',
+        summary: '포트폴리오 데이터는 자산 배분과 집중도 리스크를 중심으로 시각화합니다.',
         charts: [
           chart({
             id: 'portfolio-donut',
             type: 'donut',
-            title: 'Allocation Donut',
+            title: '자산 배분 도넛',
             priority: 'primary',
             dataKey: 'analysis.holdings',
             encoding: { color: 'ticker', size: 'weight' },
-            reason: 'Portfolio weights are parts of a whole, so a donut makes allocation concentration obvious.',
-            skillsRule: 'charts.md: portfolio -> donut/treemap',
+            reason: '포트폴리오 비중은 전체 대비 구성 비율이므로 도넛 차트가 집중도를 직관적으로 보여줍니다.',
+            skillsRule: 'charts.md: portfolio -> 도넛/트리맵',
           }),
           chart({
             id: 'portfolio-concentration',
             type: 'bar',
-            title: 'Concentration Risk',
+            title: '집중도 리스크',
             priority: 'secondary',
             dataKey: 'analysis.concentration',
             encoding: { x: 'bucket', y: 'weight' },
-            reason: 'Top 1/3/5 concentration quickly reveals whether risk is diversified or crowded.',
-            skillsRule: 'charts.md: portfolio -> concentration bar',
+            reason: '상위 1/3/5개 종목 비중으로 분산 여부와 쏠림 위험을 빠르게 확인합니다.',
+            skillsRule: 'charts.md: portfolio -> 집중도 막대',
           }),
         ],
       };
     case 'multi_asset':
       return {
         dataType,
-        summary: 'Multi-asset data compares relative performance, correlation, and volatility.',
+        summary: '다중 자산 데이터는 상대 성과, 상관관계, 변동성을 함께 비교합니다.',
         charts: [
           chart({
             id: 'multi-normalized',
             type: 'normalized_comparison',
-            title: 'Normalized Performance',
+            title: '정규화 성과 비교',
             priority: 'primary',
             dataKey: 'analysis.normalized_series',
             encoding: { x: 'date', y: 'value', series: 'ticker' },
-            reason: 'Normalizing every asset to 100 makes relative performance comparable across price scales.',
-            skillsRule: 'charts.md: multi_asset -> normalized comparison',
+            reason: '각 자산을 100 기준으로 정규화하면 가격 단위가 달라도 성과를 공정하게 비교할 수 있습니다.',
+            skillsRule: 'charts.md: multi_asset -> 정규화 비교',
           }),
           chart({
             id: 'multi-correlation',
             type: 'correlation',
-            title: 'Correlation Heatmap',
+            title: '상관관계 히트맵',
             priority: 'secondary',
             dataKey: 'analysis.correlation',
             encoding: { x: 'asset', y: 'asset', color: 'correlation' },
-            reason: 'Correlation shows diversification quality, not just return.',
-            skillsRule: 'charts.md: multi_asset -> correlation heatmap',
+            reason: '상관관계는 수익률뿐 아니라 분산 효과의 질을 보여줍니다.',
+            skillsRule: 'charts.md: multi_asset -> 상관관계 히트맵',
           }),
           chart({
             id: 'multi-volatility',
             type: 'bar',
-            title: 'Annualized Volatility',
+            title: '연율화 변동성',
             priority: 'supporting',
             dataKey: 'analysis.annualized_volatility',
             encoding: { x: 'ticker', y: 'volatility' },
-            reason: 'Volatility bars reveal which asset drives portfolio risk.',
-            skillsRule: 'charts.md: multi_asset -> volatility bar',
+            reason: '변동성 막대는 어떤 자산이 전체 위험을 키우는지 보여줍니다.',
+            skillsRule: 'charts.md: multi_asset -> 변동성 막대',
           }),
         ],
       };
     case 'returns':
       return {
         dataType,
-        summary: 'Returns data is visualized as performance, risk, and seasonality.',
+        summary: '수익률 데이터는 성과, 위험, 월별 패턴을 중심으로 시각화합니다.',
         charts: [
           chart({
             id: 'returns-metrics',
             type: 'metrics',
-            title: 'Return Metrics',
+            title: '수익률 핵심 지표',
             priority: 'primary',
             dataKey: 'analysis',
             encoding: { y: 'metrics' },
-            reason: 'Return series should first show Sharpe, annualized return, volatility, and max drawdown.',
-            skillsRule: 'charts.md: returns -> metric cards',
+            reason: '수익률 데이터는 Sharpe, 연율 수익률, 변동성, 최대 낙폭을 먼저 보여주는 것이 적합합니다.',
+            skillsRule: 'charts.md: returns -> 지표 카드',
           }),
           chart({
             id: 'returns-drawdown',
             type: 'drawdown',
-            title: 'Max Drawdown Context',
+            title: '최대 낙폭 맥락',
             priority: 'secondary',
             dataKey: 'analysis',
             encoding: { y: 'max_drawdown' },
-            reason: 'Drawdown is the investor-facing pain curve behind return.',
-            skillsRule: 'charts.md: returns -> drawdown',
+            reason: '낙폭은 수익률 뒤에 숨어 있는 투자자의 체감 손실 구간을 보여줍니다.',
+            skillsRule: 'charts.md: returns -> 낙폭',
           }),
           chart({
             id: 'returns-monthly',
             type: 'monthly_returns',
-            title: 'Monthly Returns Heatmap',
+            title: '월간 수익률 히트맵',
             priority: 'secondary',
             dataKey: 'analysis.monthly_returns',
             encoding: { x: 'month', y: 'year', color: 'return' },
-            reason: 'Monthly heatmaps expose seasonality and clusters of gains/losses.',
-            skillsRule: 'charts.md: returns -> monthly returns heatmap',
+            reason: '월간 히트맵은 계절성과 손익이 몰리는 구간을 드러냅니다.',
+            skillsRule: 'charts.md: returns -> 월간 수익률 히트맵',
+          }),
+        ],
+      };
+    case 'composite_portfolio':
+      return {
+        dataType,
+        summary: '종합 포트폴리오 데이터는 성과, 위험, 자산 배분, 개별 자산 분석을 하나의 대시보드 셸로 보여줍니다.',
+        charts: [
+          chart({
+            id: 'composite-metrics',
+            type: 'metrics',
+            title: '종합 포트폴리오 핵심 지표',
+            priority: 'primary',
+            dataKey: 'performance',
+            encoding: { y: 'value' },
+            reason: '성과와 위험을 먼저 요약해 포트폴리오의 전체 상태를 빠르게 판단합니다.',
+            skillsRule: 'charts.md: composite_portfolio -> performance, risk, allocation',
           }),
         ],
       };
@@ -163,5 +180,5 @@ export function createVisualizationBundle(dataType: VisualizationDataType): Visu
 }
 
 export function isVisualizationDataType(value: unknown): value is VisualizationDataType {
-  return value === 'OHLCV' || value === 'price_series' || value === 'portfolio' || value === 'multi_asset' || value === 'returns';
+  return value === 'OHLCV' || value === 'price_series' || value === 'portfolio' || value === 'multi_asset' || value === 'returns' || value === 'composite_portfolio';
 }

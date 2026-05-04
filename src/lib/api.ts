@@ -1,3 +1,5 @@
+import type { UploadAnalysisResult } from './chart-spec';
+
 export interface Candle {
   time: number;
   open: number;
@@ -119,6 +121,14 @@ export interface RuntimeIndicatorParams {
   obv_lookback?: number;
 }
 
+export interface UploadSampleMeta {
+  id: string;
+  label: string;
+  format: 'csv' | 'json';
+  data_type: 'OHLCV' | 'portfolio' | 'multi_asset' | 'returns' | 'price_series' | 'composite_portfolio';
+  description: string;
+}
+
 const viteEnv = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
 const BASE_URL = viteEnv?.VITE_API_BASE_URL || 'http://localhost:8000';
 
@@ -179,4 +189,6 @@ export const api = {
     kr: (ticker: string) => get(`/fundamental/kr/${enc(ticker)}`),
     us: (symbol: string) => get(`/fundamental/us/${enc(symbol)}`),
   },
+  uploadSamples: () => get<UploadSampleMeta[]>('/upload/samples'),
+  uploadSampleResult: (sampleId: string) => get<UploadAnalysisResult>(`/upload/samples/${enc(sampleId)}`),
 };
