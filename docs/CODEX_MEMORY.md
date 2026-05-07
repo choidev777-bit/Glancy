@@ -1,8 +1,72 @@
 # Codex Project Memory
 
-Updated: 2026-05-04
+Updated: 2026-05-06
 
 This file is the quick-start memory for new Codex sessions. Read this before making changes. The older `HACKATHON_DESIGN.md` is useful history, but this file is the current operational truth unless local code proves otherwise.
+
+## Current Operational Snapshot
+
+Use this section as the first source of truth. Some older sections below still contain historical notes or mojibake from earlier Korean text encoding issues.
+
+- First screen is the judge-facing `대시보드`, not a separate sample-card gallery.
+- Top-level navigation is currently:
+  - `대시보드`
+  - `자산검색`
+  - `CSV 업로드`
+- Judge demo portfolio universe:
+  - Samsung Electronics / `005930`
+  - `AAPL`
+  - `MSFT`
+  - `SPY`
+  - `BTC`
+  - `GLD`
+- The composite portfolio dashboard should look like a real investment BI screen, with minimal copy. Avoid generic explainer cards, footer copy, sample/debug badges, and long “demo/snapshot” warnings.
+- Portfolio metrics must show their analysis period. The dashboard now renders `분석 기간 {data.summary.period}` under the title, using `summary.period`.
+- Built-in fallback summary must preserve `compositeSummary.period`; do not blank it out.
+- Portfolio technical charts use actual historical daily OHLCV snapshots stored in the repo, not generated sinusoidal/demo candles.
+- Portfolio chart timeframe buttons are `1D / 1W / 1M` only. Do not reintroduce `1H` in the portfolio dashboard.
+- Current built-in OHLCV snapshot counts:
+  - `005930`: 244 candles
+  - `AAPL`: 251 candles
+  - `MSFT`: 251 candles
+  - `SPY`: 251 candles
+  - `BTC`: 365 candles
+  - `GLD`: 251 candles
+- Summary tab currently includes:
+  - overall signal gauge,
+  - portfolio allocation donut,
+  - four key metric cards,
+  - cumulative portfolio performance card,
+  - compact holdings cards with no horizontal table scroll.
+- Cumulative performance numbers are data-derived from `cumulativePortfolioSeries`, not hardcoded. The sparkline shows start/end labels only and no endpoint dots.
+- Fundamental analysis trend UX:
+  - top tabs: `요약 / 추이`
+  - trend range controls: `연간 / 분기`
+  - annual view shows the latest 5 annual points.
+  - quarterly view shows up to the latest 20 quarterly points.
+  - dense quarterly charts should not label every point; exact values are available through point hover/title and recent value tiles.
+- Chart theme behavior:
+  - dashboard `TechnicalView` receives the app `theme`; do not hard-code `theme="dark"`.
+  - MA60 default color was changed to a green tone so it is distinguishable from Bollinger colors.
+
+Important files for the current dashboard state:
+
+- `src/components/dashboard/CompositePortfolioDashboard.tsx`
+- `src/data/compositePortfolio.ts`
+- `src/data/compositePortfolioOhlcvSnapshot.json`
+- `src/components/analysis/FundamentalView.tsx`
+- `src/components/analysis/TechnicalView.tsx`
+- `src/lib/candle-timeframe.ts`
+- `tests/plan15-judge-dashboard-data-visibility.test.mjs`
+- `tests/portfolio-timeframe-ui.test.mjs`
+- `tests/fundamental-history-ux.test.mjs`
+- `tests/composite-real-ohlcv-snapshot.test.mjs`
+
+Latest verification after recent UI cleanup:
+
+- `node tests\plan15-judge-dashboard-data-visibility.test.mjs` -> passed.
+- `node tests\plan09-ui-polish.test.mjs` -> passed.
+- `npm run build` -> passed.
 
 ## Hackathon Context
 
@@ -97,6 +161,50 @@ Implementation evidence:
 - Composite adapter: `backend/app/upload/adapters/composite_portfolio.py`.
 - Sample endpoint/data wiring: `backend/app/routers/upload.py`, `backend/app/upload/sample_inputs/composite_portfolio.csv`.
 - Tests: `backend/tests/test_upload.py`.
+
+## Latest Data Visibility Milestone
+
+The judge-facing composite portfolio demo has been expanded so the first screen can prove analysis, visualization, and insight without requiring a judge to prepare CSV files.
+
+- Portfolio universe remains: Samsung Electronics, AAPL, MSFT, SPY, BTC, GLD.
+- The backend sample CSV is now a rich deterministic snapshot, not a tiny 5-row demo.
+- Backend sample API candle counts verified:
+  - Samsung Electronics, AAPL, MSFT, SPY, GLD: 1,512 hourly candles each.
+  - BTC: 8,760 hourly candles.
+- CSV/API/fallback data include 2021-2025 fundamental history:
+  - Stocks: PER, PBR, ROE, growth/profitability/leverage/dividend style metrics.
+  - ETF/GLD: fund-like metrics such as expense ratio, AUM, dividend yield, 5-year return, volatility, tracking error.
+  - BTC: crypto-appropriate base metrics such as market cap, volume, realized volatility, drawdown, 5-year return.
+- Frontend fallback no longer generates the old 24-candle demo; it uses deterministic project data from `src/data/compositePortfolio.ts`.
+- Timeframe buttons for uploaded/sample technical analysis now aggregate candles:
+  - `1H`: raw sorted candles.
+  - `1D`: UTC daily OHLCV.
+  - `1W`: UTC week starting Monday.
+  - `1M`: UTC monthly OHLCV.
+- The OHLCV count card follows the selected timeframe.
+- Fundamental trend UX labels annual data as `5년 추이` and shows the cue `2021-2025 5년 추이 데이터 있음`.
+- If the backend sample API is unavailable, the judge-facing UI shows calm copy: `내장 심사용 샘플 표시 중`. Development still logs the real backend error in the console.
+- Sample API loading is bounded with a 2500ms timeout.
+
+Implementation evidence:
+
+- Rich sample CSV: `backend/app/upload/sample_inputs/composite_portfolio.csv`.
+- Composite backend adapter: `backend/app/upload/adapters/composite_portfolio.py`.
+- Built-in composite data/fallback: `src/data/compositePortfolio.ts`.
+- Main composite dashboard: `src/components/dashboard/CompositePortfolioDashboard.tsx`.
+- Timeframe aggregation helper: `src/lib/candle-timeframe.ts`.
+- Fundamental trend UI: `src/components/analysis/FundamentalView.tsx`.
+- Sample API timeout/client behavior: `src/lib/api.ts`.
+- Plan and phase checklist: `docs/plans/PLAN_judge_ready_portfolio_dashboard_data_visibility.md`.
+- Tests: `backend/tests/test_upload.py`, `tests/plan15-judge-dashboard-data-visibility.test.mjs`, `tests/candle-timeframe.test.mjs`, `tests/fundamental-history-ux.test.mjs`, `tests/judge-fallback-behavior.test.mjs`.
+
+Latest verification:
+
+- `backend\.venv\Scripts\python.exe -m pytest backend\tests\test_upload.py -q` -> 16 passed.
+- `npm run build` -> passed.
+- `node tests\plan15-judge-dashboard-data-visibility.test.mjs; node tests\candle-timeframe.test.mjs; node tests\fundamental-history-ux.test.mjs; node tests\judge-fallback-behavior.test.mjs` -> passed.
+- Temporary live backend API check for `http://localhost:8000/upload/samples/composite-portfolio-csv` returned 200 with 6 assets and the candle/history counts listed above.
+- Browser click automation was not available because Playwright is not installed in this workspace. `http://localhost:5173/` did respond with HTTP 200.
 
 ## Runbook
 

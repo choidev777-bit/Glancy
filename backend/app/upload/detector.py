@@ -6,7 +6,7 @@ KOREAN_OHLCV = {"시가", "고가", "저가", "종가"}
 PORTFOLIO_A = {"ticker", "weight"}
 PORTFOLIO_B = {"ticker", "quantity"}
 COMPOSITE_COLUMNS = {"section", "asset", "metric", "value"}
-COMPOSITE_SECTIONS = {"portfolio_weight", "ohlcv", "price", "return", "fundamental", "metadata"}
+COMPOSITE_SECTIONS = {"portfolio_weight", "ohlcv", "price", "return", "fundamental", "fundamental_history", "metadata"}
 PORTFOLIO_KR_A = {"종목", "비중"}
 PORTFOLIO_KR_B = {"종목", "수량"}
 

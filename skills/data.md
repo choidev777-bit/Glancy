@@ -1,124 +1,65 @@
-# data.md — Data Source Registry
+# data.md - Data Source and Upload Detection
 
-## 1. Purpose
+## 목적
 
-Normalize all investment inputs into a common shape so the rest of the system can analyze any supported source with the same pipeline.
+모든 투자 입력을 대시보드가 이해할 수 있는 표준 구조로 바꾼다. 시장 API, 샘플 데이터, CSV, JSON 모두 같은 분석 파이프라인에 들어가야 한다.
 
-## 2. Input Types
+## 지원 데이터 유형
 
-| Source | Input | Expected output |
-|--------|-------|-----------------|
-| `kr_stocks` | Korean ticker, e.g. `005930` | OHLCV MarketData + optional fundamentals |
-| `us_stocks` | US symbol, e.g. `AAPL` | OHLCV MarketData + fundamentals |
-| `etfs` | ETF symbol, e.g. `SPY` | OHLCV MarketData |
-| `crypto` | Binance symbol, e.g. `BTCUSDT` | OHLCV MarketData + realtime updates |
-| `global_indices` | Index symbol, e.g. `^GSPC` | OHLCV MarketData |
-| `user_upload` | CSV/JSON | Auto-detected upload analysis |
+| 유형 | 감지 조건 | 대시보드 |
+| --- | --- | --- |
+| `composite_portfolio` | 여러 ticker의 weight 또는 quantity와 수익률, 가격, 지표 데이터가 함께 있음 | 종합 포트폴리오 |
+| `OHLCV` | Date, Open, High, Low, Close 컬럼 | 캔들 차트 기반 기술 분석 |
+| `portfolio` | Ticker와 Weight 또는 Quantity 컬럼 | 비중, 보유 자산, 집중 위험 |
+| `multi_asset` | Date와 여러 자산 가격 컬럼 | 정규화 가격 비교, 상관관계 |
+| `returns` | Date와 Return 컬럼 | 누적 성과, 낙폭, 월별 수익률 |
+| `price_series` | Date와 Close 또는 Price 컬럼 | 가격 흐름, 수익률, 낙폭 |
 
-## 3. Standard Output — MarketData
+## 표준 출력
 
 ```typescript
 interface MarketData {
-  source: 'kr_stocks' | 'us_stocks' | 'etfs' | 'crypto' | 'global_indices' | 'user_upload'
+  source: 'kr_stocks' | 'us_stocks' | 'etfs' | 'crypto' | 'indices' | 'user_upload'
   symbol: string
   name: string
-  type: 'OHLCV' | 'price_series' | 'portfolio' | 'multi_asset' | 'returns'
-  timezone: 'KST' | 'UTC'
+  type: 'OHLCV' | 'price_series' | 'portfolio' | 'multi_asset' | 'returns' | 'composite_portfolio'
   currency: 'KRW' | 'USD' | 'USDT' | 'UNKNOWN'
-  candles: Array<{
-    time: number
-    open: number
-    high: number
-    low: number
-    close: number
-    volume: number
-  }>
-  weights?: Array<{ ticker: string; weight: number; cost?: number }>
-  returns?: Array<{ time: number; value: number }>
-  meta: {
-    data_status?: 'live' | 'cached' | 'sample'
-    source_name?: string
-    fetched_at?: string
-    fallback_reason?: string | null
-  }
+  candles: Array<{ time: number; open: number; high: number; low: number; close: number; volume: number }>
+  meta: { data_status: 'live' | 'cached' | 'sample' | 'unavailable'; source_name?: string; fallback_reason?: string | null }
 }
 ```
 
-## 4. Data Source Registry
+`composite_portfolio`는 추가로 `summary`, `holdings`, `monthlyReturns`, 자산별 `technical`, `fundamental`, `summary` 블록을 포함한다.
 
-| Registry key | Primary source | Secondary source | Notes |
-|--------------|----------------|------------------|-------|
-| `kr_stocks` | pykrx | DART | pykrx for OHLCV/PER/PBR, DART for statements |
-| `us_stocks` | yfinance | sample fallback | OHLCV and fundamentals |
-| `etfs` | yfinance | sample fallback | Technical analysis only |
-| `crypto` | Binance | CoinGecko | Binance OHLCV/realtime, CoinGecko metadata |
-| `global_indices` | yfinance | sample fallback | Technical analysis only |
-| `user_upload` | local parser | manual guidance | No external key |
+## 업로드 감지 순서
 
-## 4-1. Korean Stock Provider Mode
+1. `composite_portfolio`: ticker와 weight 또는 quantity가 있고, 다중 자산 성과를 만들 수 있음
+2. `OHLCV`: open, high, low, close가 모두 있음
+3. `portfolio`: ticker와 weight 또는 quantity가 있음
+4. `returns`: date와 return이 있음
+5. `multi_asset`: date와 세 개 이상의 숫자형 자산 컬럼이 있음
+6. `price_series`: date와 close 또는 price가 있음
+7. `unknown`: 감지 실패 안내 표시
 
-`kr_stocks.provider_mode` controls how Korean stock market data is fetched.
+## 컬럼 별칭
 
-| Value | Meaning | Default? |
-|-------|---------|----------|
-| `pykrx` | Use account-free KRX KIND search and pykrx OHLCV. This is the safe default. | Yes |
-| `kiwoom_rest` | Use Kiwoom REST API for Korean quote/chart when credentials are configured. | No |
-| `auto` | Prefer Kiwoom REST if env is complete; fallback to pykrx/KRX if missing or failing. | Recommended for demos with Kiwoom keys |
+| 표준 컬럼 | 허용 별칭 |
+| --- | --- |
+| `date` | date, time, datetime, 날짜, 일자 |
+| `open` | open, o, 시가 |
+| `high` | high, h, 고가 |
+| `low` | low, l, 저가 |
+| `close` | close, price, c, 종가, 현재가 |
+| `volume` | volume, vol, 거래량 |
+| `ticker` | ticker, symbol, 종목, 종목코드 |
+| `weight` | weight, allocation, 비중 |
+| `quantity` | quantity, shares, 수량, 보유수량 |
+| `return` | return, returns, 수익률 |
 
-Rules:
+## 데이터 보강과 fallback
 
-- Korean stock search must remain KRX KIND based so every KOSPI/KOSDAQ ticker can be searched without a brokerage account.
-- Kiwoom REST may enhance quote/current-price freshness and chart data, but it must not be required for the judge demo.
-- If Kiwoom credentials are missing or invalid, AI must continue implementation with `pykrx` mode rather than stopping.
-- Never put Kiwoom App Secret in frontend `.env.local`, public Skills files, screenshots, or chat logs.
-
-## 5. Column Mapping Rules
-
-| Standard | English aliases | Korean aliases |
-|----------|-----------------|----------------|
-| `time` | date, time, datetime | 날짜, 일자, 시간 |
-| `open` | open, o | 시가 |
-| `high` | high, h | 고가 |
-| `low` | low, l | 저가 |
-| `close` | close, price, c | 종가, 현재가 |
-| `volume` | volume, vol | 거래량 |
-| `ticker` | ticker, symbol | 종목, 종목코드 |
-| `weight` | weight, allocation | 비중 |
-| `return` | return, returns | 수익률 |
-
-## 6. Upload Type Detection
-
-Detection order matters:
-
-1. `OHLCV`: open/high/low/close columns exist.
-2. `portfolio`: ticker + weight or ticker + quantity columns exist.
-3. `returns`: date + return column exists.
-4. `multi_asset`: date + three or more numeric asset columns exist.
-5. `price_series`: date + close/price column or date + single numeric series.
-6. `unknown`: show columns and ask user to adjust format.
-
-## 7. Timezone Policy
-
-- Korean stocks use KST.
-- US stocks, ETFs, indices, crypto, and uploads default to UTC.
-- Chart rendering uses Unix timestamp seconds.
-- User-facing labels can be localized to KST.
-
-## 8. Missing Data Policy
-
-| Problem | Handling |
-|---------|----------|
-| Missing volume | Set volume to 0 and mark limited volume analysis |
-| Missing OHLC high/low | Convert price_series to OHLC where open/high/low/close are close |
-| Empty API response | Use cache, then sample fallback |
-| Invalid upload values | Return row/column guidance |
-
-## 9. Reliability Policy
-
-Every external data response should carry `meta.data_status`.
-
-| Status | Meaning |
-|--------|---------|
-| `live` | Fresh external API response |
-| `cached` | Recent cached response |
-| `sample` | Demo fallback response |
+- 외부 API 실패 시 캐시를 먼저 쓰고, 없으면 샘플 기준 데이터를 사용한다.
+- 샘플 기준 데이터는 UI와 인사이트에서 명시한다.
+- Volume이 없으면 0으로 채우되 거래량 분석은 제한한다.
+- Price series는 close를 open, high, low, close에 복제하여 간이 OHLC로 변환할 수 있다.
+- 한국 주식 이름은 ticker보다 종목명을 우선한다. quote 응답의 name이 ticker와 같으면 기존 이름을 유지한다.

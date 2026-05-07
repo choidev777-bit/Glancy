@@ -1,62 +1,44 @@
 # Glancy Skills.md Package
 
-Glancy is a Skills.md-driven investment dashboard. These files define the rules for data normalization, indicator computation, insight generation, chart selection, layout composition, and visual theme.
+AI에게 이 폴더를 주면 현재 Glancy 대시보드를 재현할 수 있어야 한다. 이 패키지는 투자 데이터 입력을 표준화하고, 지표를 계산하고, 한국어 인사이트와 차트 구성을 결정하고, 최종 대시보드 레이아웃과 테마까지 지정하는 실행 명세다.
 
-## Package Structure
+## 읽는 순서
 
-| File | Role |
-|------|------|
-| `main.md` | System entry point and execution order |
-| `data.md` | Data source registry and MarketData normalization |
-| `indicators.md` | Technical/fundamental indicator computation rules |
-| `insights.md` | Rule-based Korean narrative generation |
-| `charts.md` | Data type to ChartSpec visualization mapping |
-| `layout.md` | Dashboard composition, responsive behavior, states |
-| `theme.md` | Design tokens for dark/light dashboard themes |
-| `providers/kiwoom.md` | Optional Kiwoom REST setup and AI/user responsibilities |
+1. `main.md`: 전체 실행 순서와 화면 목표
+2. `dashboard-spec.md`: 현재 Glancy 화면을 재현하기 위한 낮은 자유도의 화면 명세
+3. `sample-data.md`: 심사용 샘플 데이터와 정확한 표시 값
+4. `data.md`: 데이터 소스, 업로드 감지, 표준 스키마
+5. `indicators.md`: 기술, 기본, 포트폴리오 지표와 점수
+6. `insights.md`: 상황별 한국어 인사이트 생성 규칙
+7. `charts.md`: 데이터 유형별 차트 선택 규칙
+8. `layout.md`: 화면 구성과 제거해야 할 내부 데모 UI
+9. `theme.md`: 색상, 타이포그래피, 컴포넌트 밀도
+10. `acceptance.md`: 결과물 검수 체크리스트
 
-## Dependency Graph
+`providers/kiwoom.md`는 선택 사항이다. 한국 주식 실시간 호가를 Kiwoom REST로 붙일 때만 읽는다.
 
-```text
-main.md
-  -> data.md
-      -> indicators.md
-          -> insights.md
-              -> charts.md
-                  -> layout.md <- theme.md
-                      -> Final Dashboard
-```
+## 재현 목표
 
-## Two Usage Modes
+- 첫 화면은 종합 포트폴리오 대시보드다.
+- 샘플 포트폴리오는 `005930`, `AAPL`, `MSFT`, `SPY`, `BTC`, `GLD`로 구성한다.
+- 같은 데이터가 들어오면 같은 데이터 유형, 같은 지표, 같은 차트, 같은 인사이트 구조가 나와야 한다.
+- 픽셀 단위 복제보다 분석 기준, 정보 구조, 화면 우선순위, fallback 표현의 일관성이 중요하다.
+- 하드코딩된 투자 문구 대신 지표, 가격, 수익률, 변동성, 데이터 상태에서 문구를 생성한다.
+- 똑같이 구현해야 하는 경우 `dashboard-spec.md`, `sample-data.md`, `acceptance.md`를 반드시 함께 적용한다.
 
-### Build-time Guide
+## 제출용 품질 기준
 
-AI coding tools should load `README.md` and `main.md` first, then load the relevant module for the current task. Each module describes inputs, outputs, fallback behavior, and examples.
+| 기준 | Skills.md가 증명해야 하는 것 |
+| --- | --- |
+| 범용성 | CSV, JSON, 시장 API, 복합 포트폴리오를 같은 파이프라인으로 처리 |
+| Skills.md 설계 | 각 파일이 구현 가능한 입력, 출력, 규칙을 갖춤 |
+| 자동 대시보드 생성 | 감지된 데이터 유형에 따라 화면이 자동 선택됨 |
+| 바이브코딩 활용 | 문서 규칙이 코드와 UI에 직접 대응됨 |
+| 실용성 | 데이터 실패, 샘플 기준, 지표 부족 상태를 숨기지 않음 |
 
-### Runtime Configuration
+## 금지 사항
 
-The dashboard can use selected rules from `indicators.md`, `charts.md`, and `theme.md` at runtime. When a user changes RSI thresholds or theme tokens in the Skills Runtime Demo, the dashboard recalculates or restyles without changing code.
-
-## Optional Korean Stock Provider Mode
-
-For Korean stocks, AI should present two modes before enabling brokerage-backed data:
-
-| Mode | When to use | Behavior |
-|------|-------------|----------|
-| `pykrx` | Default, no brokerage setup | Search via KRX KIND, chart via pykrx/KRX, quote from latest daily candle |
-| `kiwoom_rest` | User completed Kiwoom REST setup | Quote and chart can use Kiwoom REST, with pykrx fallback |
-| `auto` | Recommended for configured demos | Use Kiwoom when env is complete; otherwise continue with pykrx |
-
-Load `providers/kiwoom.md` before implementing or troubleshooting Kiwoom REST integration.
-
-## Scoring Strategy
-
-This package targets all five hackathon evaluation areas:
-
-| Criterion | Evidence |
-|-----------|----------|
-| Generality | `data.md` normalizes multiple data sources and upload types |
-| Skills.md quality | Seven focused modules with explicit interfaces |
-| Automatic dashboard generation | `charts.md` and `layout.md` generate views from data type |
-| Vibe coding | Skills-to-code traceability can be documented from this package |
-| Practicality/creativity | Runtime demo, upload analysis, and fallback reliability |
+- 심사 화면에 개발자용 문구를 노출하지 않는다.
+- 내부 설명, runtime demo 패널, 규칙 출처 배지는 사용자가 보는 대시보드에 렌더링하지 않는다.
+- 샘플 데이터나 fallback 값을 실제 실시간 분석처럼 보이게 하지 않는다.
+- OHLCV 개수 같은 저가치 메타 정보를 주요 KPI 카드로 노출하지 않는다.

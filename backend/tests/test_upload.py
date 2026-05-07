@@ -30,7 +30,7 @@ def _make_ohlcv(n: int = 80) -> bytes:
 
 def _make_composite_portfolio() -> pd.DataFrame:
     holdings = [
-        ("삼성전자", "KRW", 0.25),
+        ("005930", "KRW", 0.25),
         ("AAPL", "USD", 0.20),
         ("MSFT", "USD", 0.18),
         ("SPY", "USD", 0.22),
@@ -50,6 +50,26 @@ def _make_composite_portfolio() -> pd.DataFrame:
     rows.append({"section": "metadata", "asset": "portfolio", "date": "", "metric": "base_currency", "value": "KRW", "currency": ""})
     rows.append({"section": "metadata", "asset": "portfolio", "date": "", "metric": "display_currency", "value": "USD", "currency": ""})
     return pd.DataFrame(rows)
+
+
+def _make_composite_portfolio_without_ohlcv() -> pd.DataFrame:
+    df = _make_composite_portfolio()
+    return df[df["section"] != "ohlcv"].reset_index(drop=True)
+
+
+def _make_composite_portfolio_with_fundamental_history() -> pd.DataFrame:
+    df = _make_composite_portfolio()
+    rows = []
+    for year, per, roe in [
+        ("2021", 18.2, 9.8),
+        ("2022", 16.4, 10.7),
+        ("2023", 15.1, 11.6),
+        ("2024", 14.5, 12.1),
+        ("2025", 13.9, 12.8),
+    ]:
+        rows.append({"section": "fundamental_history", "asset": "AAPL", "date": year, "metric": "PER", "value": per, "currency": ""})
+        rows.append({"section": "fundamental_history", "asset": "AAPL", "date": year, "metric": "ROE", "value": roe, "currency": ""})
+    return pd.concat([df, pd.DataFrame(rows)], ignore_index=True)
 
 
 def test_detect_types():
@@ -91,12 +111,50 @@ def test_upload_composite_portfolio():
     body = response.json()
     assert body["type"] == "composite_portfolio"
     assert body["summary"]["title"] == "종합 포트폴리오 분석"
-    assert body["summary"]["assets"] == ["삼성전자", "AAPL", "MSFT", "SPY", "BTC", "GLD"]
+    assert body["summary"]["assets"] == ["005930", "AAPL", "MSFT", "SPY", "BTC", "GLD"]
+    assert body["summary"]["signal_score"] != 72
+    assert 0 <= body["summary"]["signal_score"] <= 100
     assert body["portfolio"]["n_holdings"] == 6
     assert body["portfolio"]["total_weight"] == 1
     assert body["performance"]["cumulative_return"] > 0
     assert "analysis" in body["insights"]
+    assert "BTC는 수익 기여도가 높지만" not in body["insights"]["insight"]
     assert body["data_quality"]["sections"]["portfolio_weight"] == 6
+
+
+def test_upload_composite_portfolio_parses_five_year_fundamental_history():
+    response = client.post(
+        "/upload/",
+        files={"file": ("composite_with_history.csv", _csv(_make_composite_portfolio_with_fundamental_history()), "text/csv")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["summary"]["period"] == {"start": "2025-01-01", "end": "2025-01-05"}
+    aapl = next(asset for asset in body["assets"] if asset["ticker"] == "AAPL")
+    history = aapl["fundamental"]["history"]
+    assert len(history) == 2
+    assert history[0]["label"] == "PER"
+    assert history[0]["unit"] == "x"
+    assert history[0]["direction"] == "lower-better"
+    assert history[0]["history"] == [
+        {"quarter": "2021", "value": 18.2},
+        {"quarter": "2022", "value": 16.4},
+        {"quarter": "2023", "value": 15.1},
+        {"quarter": "2024", "value": 14.5},
+        {"quarter": "2025", "value": 13.9},
+    ]
+    assert history[1]["label"] == "ROE"
+    assert history[1]["unit"] == "%"
+    assert history[1]["direction"] == "higher-better"
+
+
+def test_upload_composite_portfolio_without_fundamental_history_stays_compatible():
+    response = client.post("/upload/", files={"file": ("composite.csv", _csv(_make_composite_portfolio()), "text/csv")})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["type"] == "composite_portfolio"
+    for asset in body["assets"]:
+        assert asset["fundamental"]["history"] == []
 
 
 def test_upload_samples_manifest():
@@ -150,7 +208,66 @@ def test_composite_portfolio_sample_has_dashboard_sections():
     body = response.json()
     assert body["type"] == "composite_portfolio"
     assert set(body.keys()) >= {"summary", "portfolio", "performance", "risk", "allocation", "assets", "insights", "data_quality"}
-    assert [asset["ticker"] for asset in body["assets"]] == ["삼성전자", "AAPL", "MSFT", "SPY", "BTC", "GLD"]
+    assert [asset["ticker"] for asset in body["assets"]] == ["005930", "AAPL", "MSFT", "SPY", "BTC", "GLD"]
+
+
+def test_composite_portfolio_sample_has_per_asset_technical_detail():
+    response = client.get("/upload/samples/composite-portfolio-csv")
+    assert response.status_code == 200
+    body = response.json()
+    assets = body["assets"]
+    tickers = [asset["ticker"] for asset in assets]
+    assert len(tickers) == 6
+    assert tickers[1:] == ["AAPL", "MSFT", "SPY", "BTC", "GLD"]
+    for asset in assets:
+        technical = asset["technical"]
+        assert technical["has_ohlcv"] is True
+        assert len(technical["candles"]) >= 200
+        assert {"time", "open", "high", "low", "close", "volume"}.issubset(technical["candles"][0])
+        if asset["ticker"] == "005930":
+            assert any(candle["close"] > 100000 for candle in technical["candles"])
+        assert {"technical", "overall", "moving_average"}.issubset(technical["gauges"])
+        assert technical["indicators"]
+        assert technical["moving_averages"]
+        indicator_names = {indicator["name"] for indicator in technical["indicators"]}
+        assert {
+            "RSI(14)",
+            "STOCH(9,6)",
+            "STOCHRSI(14)",
+            "MACD(12,26)",
+            "ADX(14)",
+            "Williams %R",
+            "CCI(14)",
+            "ATR(14)",
+            "Highs/Lows(14)",
+            "Ultimate Oscillator",
+            "ROC",
+            "Bull/Bear Power",
+        }.issubset(indicator_names)
+        ma_periods = {average["period"] for average in technical["moving_averages"]}
+        assert {5, 10, 20, 50, 100, 200}.issubset(ma_periods)
+        assert asset["summary"]["insight"]
+        assert asset["fundamental"]["categories"]
+        assert asset["fundamental"]["history"]
+        for metric in asset["fundamental"]["history"]:
+            labels = [point["quarter"] for point in metric["history"]]
+            assert {"2021", "2025", "2025 Q4"}.issubset(labels)
+            assert len(labels) >= 25
+
+
+def test_composite_portfolio_without_ohlcv_returns_warning_not_mock_detail():
+    response = client.post(
+        "/upload/",
+        files={"file": ("composite_without_ohlcv.csv", _csv(_make_composite_portfolio_without_ohlcv()), "text/csv")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["type"] == "composite_portfolio"
+    assert body["data_quality"]["warnings"]
+    assert any("OHLCV" in warning for warning in body["data_quality"]["warnings"])
+    for asset in body["assets"]:
+        assert asset["technical"]["has_ohlcv"] is False
+        assert asset["technical"]["candles"] == []
 
 
 def test_price_series_sample_has_drawdown_data():

@@ -42,6 +42,6 @@ export function getCandleColors(theme: 'dark' | 'light') {
 
 export function getMAColors(theme: 'dark' | 'light'): string[] {
   return theme === 'dark'
-    ? ['#06b6d4', '#a855f7', '#f59e0b', '#ec4899']
-    : ['#0891b2', '#9333ea', '#d97706', '#db2777'];
+    ? ['#06b6d4', '#a855f7', '#84cc16', '#ec4899']
+    : ['#0891b2', '#9333ea', '#65a30d', '#db2777'];
 }

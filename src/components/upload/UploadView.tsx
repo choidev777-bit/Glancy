@@ -6,11 +6,12 @@ import CompositePortfolioDashboard from '../dashboard/CompositePortfolioDashboar
 import VisualizationDashboard from '../visualization/VisualizationDashboard';
 
 const SUPPORTED_TYPES = [
-  { key: 'OHLCV', label: 'OHLCV 캔들', desc: 'Date, Open, High, Low, Close, Volume 컬럼' },
-  { key: 'portfolio', label: '포트폴리오 비중', desc: 'Ticker와 Weight 컬럼' },
+  { key: 'OHLCV', label: 'OHLCV 캔들', desc: 'Date, Open, High, Low, Close 컬럼' },
+  { key: 'portfolio', label: '포트폴리오 비중', desc: 'Ticker와 Weight/Quantity 컬럼' },
   { key: 'multi_asset', label: '다중 자산 비교', desc: 'Date와 여러 자산 가격 컬럼' },
   { key: 'returns', label: '수익률 시계열', desc: 'Date와 Return 컬럼' },
-  { key: 'price_series', label: '가격 시계열', desc: 'Date와 Close 컬럼' },
+  { key: 'price_series', label: '가격 시계열', desc: 'Date와 Close/Price 컬럼' },
+  { key: 'composite_portfolio', label: '종합 포트폴리오', desc: 'section 기반 포트폴리오/가격/수익률/기초 지표' },
 ];
 
 const DATA_TYPE_LABELS: Record<UploadSampleMeta['data_type'], string> = {
@@ -119,7 +120,7 @@ export default function UploadView({ defaultMode = 'samples' }: UploadViewProps)
   };
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 space-y-6 px-6 pb-12 duration-500">
+    <div className="animate-in fade-in slide-in-from-bottom-4 mt-6 space-y-6 px-6 pb-12 duration-500">
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
@@ -207,7 +208,7 @@ export default function UploadView({ defaultMode = 'samples' }: UploadViewProps)
           <Upload size={48} className="mx-auto mb-4 text-text-tertiary" aria-hidden="true" />
           <h3 className="mb-2 text-lg font-bold">CSV 또는 JSON 투자 데이터 업로드</h3>
           <p className="mx-auto mb-6 max-w-xl text-sm text-text-secondary">
-            Glancy가 OHLCV, 포트폴리오, 다중 자산, 수익률, 가격 시계열 데이터를 자동 판별하고
+            Glancy가 OHLCV, 포트폴리오, 다중 자산, 수익률, 가격 시계열, 종합 포트폴리오 데이터를 자동 판별하고
             적합한 시각화 대시보드를 구성합니다.
           </p>
           <label className="btn-primary inline-flex cursor-pointer">

@@ -82,9 +82,14 @@ function AssetSearchBox({ onAssetSelect }: { onAssetSelect: (asset: AssetSearchR
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const requestIdRef = useRef(0);
+  const suppressNextSearchRef = useRef(false);
 
   useEffect(() => {
     const trimmed = query.trim();
+    if (suppressNextSearchRef.current) {
+      suppressNextSearchRef.current = false;
+      return;
+    }
     if (!trimmed) {
       setResults([]);
       setError(null);
@@ -122,6 +127,7 @@ function AssetSearchBox({ onAssetSelect }: { onAssetSelect: (asset: AssetSearchR
 
   const selectAsset = (asset: AssetSearchResult) => {
     onAssetSelect(asset);
+    suppressNextSearchRef.current = true;
     setQuery(`${asset.name} (${asset.symbol})`);
     setIsOpen(false);
   };

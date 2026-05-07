@@ -5,7 +5,6 @@ import DrawdownChart from './DrawdownChart';
 import MonthlyReturnsHeatmap from './MonthlyReturnsHeatmap';
 import NormalizedComparisonChart from './NormalizedComparisonChart';
 import PortfolioDonut from './PortfolioDonut';
-import VisualizationReason from './VisualizationReason';
 
 interface ChartRendererProps {
   spec: ChartSpec;
@@ -170,7 +169,6 @@ export default function ChartRenderer({ spec, result }: ChartRendererProps) {
         </span>
       </div>
       {body}
-      <VisualizationReason spec={spec} />
     </div>
   );
 }

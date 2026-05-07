@@ -21,7 +21,7 @@ for (const file of [
 
 assert.match(read('public/skills/theme.md'), /runtime-demo: true/);
 assert.match(read('public/skills/indicators.md'), /editable-fields:/);
-assert.match(read('src/components/analysis/TechnicalView.tsx'), /SkillsRuntimePanel/);
+assert.doesNotMatch(read('src/components/analysis/TechnicalView.tsx'), /SkillsRuntimePanel/);
 assert.match(read('src/lib/api.ts'), /RuntimeIndicatorParams/);
 assert.match(read('src/hooks/useIndicatorsData.ts'), /runtimeParams/);
 assert.match(read('docs/deployment/qa-checklist.md'), /Skills Runtime Demo/);

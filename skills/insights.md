@@ -1,117 +1,73 @@
-# insights.md — Rule-Based Narrative Layer
+# insights.md - Rule-Based Narrative Layer
 
-## 1. Purpose
+## 목적
 
-Generate Korean natural-language insights from indicator values without calling an external LLM API. The rules must be deterministic, fast, explainable, and safe.
+화면의 한국어 분석 문구를 지표 상태에서 생성한다. 인사이트는 deterministic해야 하며, 외부 LLM 호출 없이도 같은 입력에 같은 문구를 만들어야 한다.
 
-## 2. Output Interface
+## 절대 원칙
 
-```typescript
-interface Insight {
-  category: '추세' | '모멘텀' | '변동성' | '거래량' | '위험' | '종합'
-  severity: 'info' | 'positive' | 'warning' | 'negative'
-  title: string
-  text: string
-  evidence: string[]
-}
+- 하드코딩 문구 금지: 특정 자산에 고정된 문장을 넣지 않는다.
+- 투자 명령 금지: `반드시 매수`, `확정 수익` 같은 표현을 쓰지 않는다.
+- 데이터 상태 명시: 데이터 수신 실패, 샘플 기준, 지표 데이터 부족은 숨기지 않는다.
+- 상충 신호 명시: RSI는 매도인데 MACD는 매수처럼 지표가 엇갈리면 이를 문장에 포함한다.
+- 요약 문구는 대시보드 카드에서 한두 줄로 읽히게 한다.
 
-interface InsightBundle {
-  summary: string
-  details: Insight[]
-}
-```
+## 종합 인사이트 생성
 
-## 3. Tone Rules
+입력:
 
-- Do not guarantee future returns.
-- Avoid direct investment commands such as "반드시 매수".
-- Prefer probability/context language: "가능성이 있습니다", "유의가 필요합니다".
-- Mention conflicting signals when indicators disagree.
-- Keep summary short enough for a dashboard card.
+- `technical.percent`
+- `moving_average.percent`
+- 주요 indicator signal
+- 데이터 상태
+- 자산명, 수익률, 변동성
 
-## 4. Per-Indicator Templates
+규칙:
 
-### RSI
+| 상황 | 문구 방향 |
+| --- | --- |
+| 기술 점수와 MA 점수가 모두 70 이상 | 기술 지표와 이동평균 흐름이 우호적이라고 설명 |
+| 기술 점수 또는 MA 점수가 35 이하 | 추세 약화와 변동성 관리 필요 설명 |
+| 매수와 매도 신호가 함께 존재 | 지표가 혼재되어 추가 확인이 필요하다고 설명 |
+| 지표 없음 | 지표 데이터 부족으로 정량 신호를 확정하기 어렵다고 설명 |
+| API 실패 | 데이터 수신 실패로 샘플 기준 또는 보유 가격 정보만 반영했다고 설명 |
 
-| Condition | Text |
-|-----------|------|
-| RSI < 20 | `RSI {value}로 극단적 과매도 구간입니다. 단기 반등 가능성이 높아 보입니다.` |
-| 20 <= RSI < 30 | `RSI {value}로 과매도 구간에 진입했습니다.` |
-| 70 < RSI <= 80 | `RSI {value}로 과매수 구간입니다. 단기 조정 가능성에 유의하세요.` |
-| RSI > 80 | `RSI {value}로 극단적 과매수 구간입니다. 변동성 확대에 유의하세요.` |
-
-### MACD
-
-| Condition | Text |
-|-----------|------|
-| MACD crosses above signal | `MACD가 신호선을 상향 돌파하며 모멘텀 개선이 관찰됩니다.` |
-| MACD crosses below signal | `MACD가 신호선을 하향 돌파하며 단기 약세 신호가 나타났습니다.` |
-| MACD > signal and histogram rising | `MACD 히스토그램이 확대되며 상승 모멘텀이 강화되고 있습니다.` |
-
-### Moving Average
-
-| Condition | Text |
-|-----------|------|
-| MA5 > MA20 > MA60 | `이동평균선이 정배열을 유지하며 상승 추세가 확인됩니다.` |
-| MA5 < MA20 < MA60 | `이동평균선이 역배열로 하락 추세가 진행 중입니다.` |
-| Golden cross | `최근 단기선이 장기선을 상향 돌파하며 골든크로스가 발생했습니다.` |
-| Death cross | `최근 단기선이 장기선을 하향 돌파하며 데드크로스가 발생했습니다.` |
-
-### Bollinger Bands
-
-| Condition | Text |
-|-----------|------|
-| price > upper | `가격이 볼린저밴드 상단을 이탈했습니다. 과열 또는 강한 돌파 국면입니다.` |
-| price < lower | `가격이 볼린저밴드 하단을 이탈했습니다. 과매도 또는 추가 하락 국면입니다.` |
-
-### ADX
-
-| Condition | Text |
-|-----------|------|
-| ADX < 20 | `ADX {value}로 추세 강도가 약합니다. 횡보 가능성이 있습니다.` |
-| ADX >= 25 and +DI > -DI | `ADX {value}로 상승 추세 강도가 확인됩니다.` |
-| ADX >= 25 and -DI > +DI | `ADX {value}로 하락 추세 강도가 확인됩니다.` |
-
-## 5. Overall Insight Rules
+예시:
 
 ```text
-buy_total = strong_buy_count * 2 + buy_count
-sell_total = strong_sell_count * 2 + sell_count
+삼성전자는 기술 지표와 이동평균 흐름이 모두 우호적입니다. 단기 추세는 긍정적이지만 과열 신호가 함께 있는지 확인해야 합니다.
 ```
 
-| Condition | Summary |
-|-----------|---------|
-| buy_total >= sell_total * 2 and buy_total >= 4 | `전반적으로 매수 신호가 우세합니다...` |
-| sell_total >= buy_total * 2 and sell_total >= 4 | `전반적으로 매도 압력이 우세합니다...` |
-| both buy and sell strong signals exist | `지표가 혼재되어 있어 추가 확인이 필요합니다...` |
-| otherwise | `종합 시그널은 중립 영역입니다...` |
+```text
+삼성전자의 외부 지표 데이터 수신 실패로 샘플 기준 차트와 보유 중인 가격 정보만 반영했습니다. 실제 판단에는 최신 지표 재수신이 필요합니다.
+```
 
-## 6. Upload Insight Rules
+## 기술 지표 문구
 
-### Portfolio
+| 지표 | 조건 | 문구 |
+| --- | --- | --- |
+| RSI(14) | 70 초과 | RSI가 과매수권에 있어 단기 과열 여부를 확인해야 한다 |
+| RSI(14) | 30 미만 | RSI가 과매도권에 있어 반등 가능성과 추가 하락 위험을 함께 확인한다 |
+| MACD(12,26) | 매수 | MACD가 우호적 모멘텀을 보인다 |
+| MACD(12,26) | 매도 | MACD가 단기 약세 신호를 보인다 |
+| MA 배열 | 상승 | 현재 가격이 주요 이동평균 위에서 유지된다 |
+| MA 배열 | 하락 | 주요 이동평균 아래로 내려가 추세 확인이 필요하다 |
+| ADX(14) | 25 이상 | 추세 강도가 확인된다 |
+| ADX(14) | 20 미만 | 방향성이 약해 횡보 가능성이 있다 |
 
-| Condition | Text |
-|-----------|------|
-| top_1 > 0.5 | `상위 1개 종목 비중이 50%를 넘어 집중 위험이 큽니다.` |
-| top_3 > 0.8 | `상위 3개 종목에 포트폴리오가 크게 집중되어 있습니다.` |
-| n_holdings >= 10 and top_5 < 0.6 | `보유 종목이 분산되어 특정 종목 의존도가 낮습니다.` |
+## 포트폴리오 인사이트
 
-### Multi Asset
+`composite_portfolio`는 다음 문장을 생성한다.
 
-| Condition | Text |
-|-----------|------|
-| average correlation > 0.8 | `종목 간 상관관계가 높아 분산 효과가 제한적입니다.` |
-| average correlation < 0.3 | `상관관계가 낮아 분산 효과가 기대됩니다.` |
+- 총 수익률, 변동성, 최대 낙폭을 함께 설명한다.
+- 성과/리스크 탭의 `포트폴리오 누적 성과`, `최대 낙폭 흐름`, `월별 수익률`과 같은 숫자를 근거로 쓴다.
+- 자산 배분 탭에서는 비중과 보유 자산 요약을 설명한다.
+- 집중도 카드가 없으므로 상위 3개 비중은 별도 시각화하지 않는다.
 
-### Returns
+## 안전 문구
 
-| Condition | Text |
-|-----------|------|
-| sharpe > 1 | `위험 대비 성과가 양호합니다.` |
-| max_drawdown < -0.2 | `최대 낙폭이 커서 손실 구간 관리가 필요합니다.` |
+필요할 때 다음 의미를 짧게 포함한다.
 
-## 7. Safety Footer
-
-Dashboard insights may include:
-
-`본 분석은 데이터 기반 참고 정보이며 투자 판단의 최종 책임은 사용자에게 있습니다.`
+```text
+본 분석은 입력 데이터 기반 참고 정보이며 최종 투자 판단은 사용자의 책임입니다.
+```

@@ -1,12 +1,11 @@
-import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, Settings } from 'lucide-react';
+import React from 'react';
 import ChartContainer from '../charts/ChartContainer';
 import Gauge from '../common/Gauge';
 import SignalBadge from '../common/SignalBadge';
-import SkillsRuntimePanel from '../skills/SkillsRuntimePanel';
-import { mockCandles, technicalDetails } from '../../data/mockData';
+import { mockCandles } from '../../data/mockData';
 import type { Candle, IndicatorsResponse, RuntimeIndicatorParams } from '../../lib/api';
-import type { ParsedSkillsRuntime } from '../../lib/skills-parser';
+import { buildTechnicalFallbackAnalysis } from '../../lib/asset-analysis';
+import { aggregateCandlesForTimeframe } from '../../lib/candle-timeframe';
 import { CHART_TIMEFRAMES, DEFAULT_CHART_TIMEFRAME, type ChartTimeframe } from '../../lib/timeframes';
 
 interface TechnicalViewProps {
@@ -18,11 +17,16 @@ interface TechnicalViewProps {
   loading?: boolean;
   error?: string | null;
   runtimeParams?: RuntimeIndicatorParams;
-  onRuntimeChange?: (runtime: ParsedSkillsRuntime) => void;
   timeframe?: ChartTimeframe;
   onTimeframeChange?: (timeframe: ChartTimeframe) => void;
+  availableTimeframes?: ChartTimeframe[];
   enableRealtimeCandle?: boolean;
+  allowMockCandles?: boolean;
+  emptyMessage?: string;
 }
+
+const DEFAULT_EMPTY_MESSAGE =
+  '업로드 데이터에 해당 자산의 OHLCV 섹션이 없어 캔들 차트를 생성하지 못했습니다.';
 
 const TechnicalView: React.FC<TechnicalViewProps> = ({
   candles,
@@ -33,28 +37,33 @@ const TechnicalView: React.FC<TechnicalViewProps> = ({
   loading = false,
   error,
   runtimeParams,
-  onRuntimeChange,
   timeframe = DEFAULT_CHART_TIMEFRAME,
   onTimeframeChange,
+  availableTimeframes = CHART_TIMEFRAMES,
   enableRealtimeCandle = true,
+  allowMockCandles = true,
+  emptyMessage = DEFAULT_EMPTY_MESSAGE,
 }) => {
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const chartCandles = candles && candles.length > 0 ? candles : mockCandles;
-  const technicalGauge = indicators?.gauges?.technical?.percent ?? 72;
-  const overallGauge = indicators?.gauges?.overall?.percent ?? 85;
-  const movingAverageGauge = indicators?.gauges?.moving_average?.percent ?? 78;
-  const insight = indicators?.insights?.summary;
-  const indicatorRows = indicators?.indicators?.length ? indicators.indicators : technicalDetails.indicators;
-  const movingAverageRows = indicators?.moving_averages?.length ? indicators.moving_averages : technicalDetails.movingAverages;
+  const chartCandles = candles && candles.length > 0 ? candles : allowMockCandles ? mockCandles : [];
+  const timeframeCandles = aggregateCandlesForTimeframe(chartCandles, timeframe);
+  const fallbackAnalysis = buildTechnicalFallbackAnalysis(indicators, error);
+  const technicalGauge = indicators?.gauges?.technical?.percent ?? fallbackAnalysis.technicalGauge;
+  const overallGauge = indicators?.gauges?.overall?.percent ?? fallbackAnalysis.overallGauge;
+  const movingAverageGauge = indicators?.gauges?.moving_average?.percent ?? fallbackAnalysis.movingAverageGauge;
+  const technicalSignal = indicators?.gauges?.technical?.signal ?? '기술';
+  const overallSignal = indicators?.gauges?.overall?.signal ?? '중립';
+  const maSignal = indicators?.gauges?.moving_average?.signal ?? 'MA';
+  const insight = indicators?.insights?.summary ?? fallbackAnalysis.insight;
+  const indicatorRows = indicators?.indicators ?? [];
+  const movingAverageRows = indicators?.moving_averages ?? [];
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 space-y-6 px-6 pb-12 duration-500">
-      <SkillsRuntimePanel onRuntimeChange={onRuntimeChange ?? (() => undefined)} />
-
       <div className="flex w-fit gap-2 rounded-pill border border-border bg-surface-1 p-1">
-        {CHART_TIMEFRAMES.map((tf) => (
+        {availableTimeframes.map((tf) => (
           <button
             key={tf}
+            type="button"
             onClick={() => onTimeframeChange?.(tf)}
             className={`rounded-pill px-4 py-1.5 text-xs font-bold transition-colors ${
               timeframe === tf ? 'bg-surface-4 text-text-primary' : 'text-text-secondary hover:text-text-primary'
@@ -67,36 +76,37 @@ const TechnicalView: React.FC<TechnicalViewProps> = ({
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
         <div className="card flex flex-col items-center p-6">
-          <Gauge score={technicalGauge} label="기술" title="기술 지표 점수" size={180} />
+          <Gauge score={technicalGauge} label={technicalSignal} title="기술 지표 점수" size={180} />
         </div>
         <div className="card flex flex-col items-center border-brand-primary/20 bg-surface-3/30 p-6">
-          <Gauge score={overallGauge} label="종합" title="종합 시그널" size={200} />
+          <Gauge score={overallGauge} label={overallSignal} title="종합 시그널" size={200} />
         </div>
         <div className="card flex flex-col items-center p-6">
-          <Gauge score={movingAverageGauge} label="MA" title="이동평균 점수" size={180} />
+          <Gauge score={movingAverageGauge} label={maSignal} title="이동평균 점수" size={180} />
         </div>
       </div>
 
       <div className={`card border-info/20 p-4 ${error ? 'bg-warning/5' : 'bg-info/5'}`}>
         <p className="text-center text-sm text-text-secondary">
           {loading && '시장 데이터를 불러오는 중입니다...'}
-          {!loading && error && `데이터 공급이 불안정합니다: ${error}. 안정적인 샘플 데이터로 화면을 유지합니다.`}
-          {!loading &&
-            !error &&
-            (insight ??
-              '기술 지표 엔진이 연결되어 있습니다. 외부 데이터 공급자가 실패해도 차트는 fallback 데이터로 유지됩니다.')}
+          {!loading && error && `데이터 공급이 불안정합니다: ${error}. ${insight}`}
+          {!loading && !error && insight}
         </p>
       </div>
 
-      <ChartContainer
-        candles={chartCandles}
-        category={category}
-        symbol={symbol}
-        theme={theme}
-        runtimeParams={runtimeParams}
-        timeframe={timeframe}
-        enableRealtimeCandle={enableRealtimeCandle}
-      />
+      {timeframeCandles.length > 0 ? (
+        <ChartContainer
+          candles={timeframeCandles}
+          category={category}
+          symbol={symbol}
+          theme={theme}
+          runtimeParams={runtimeParams}
+          timeframe={timeframe}
+          enableRealtimeCandle={enableRealtimeCandle}
+        />
+      ) : (
+        <div className="card p-8 text-center text-sm text-text-secondary">{emptyMessage}</div>
+      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="card">
@@ -113,15 +123,23 @@ const TechnicalView: React.FC<TechnicalViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {indicatorRows.map((item) => (
-                  <tr key={item.name} className="transition-colors hover:bg-surface-3">
-                    <td className="px-4 py-2.5 font-medium">{item.name}</td>
-                    <td className="px-4 py-2.5 text-right font-mono">{item.value}</td>
-                    <td className="flex justify-center px-4 py-2.5">
-                      <SignalBadge signal={item.signal} />
+                {indicatorRows.length > 0 ? (
+                  indicatorRows.map((item) => (
+                    <tr key={item.name} className="transition-colors hover:bg-surface-3">
+                      <td className="px-4 py-2.5 font-medium">{item.name}</td>
+                      <td className="px-4 py-2.5 text-right font-mono">{item.value}</td>
+                      <td className="flex justify-center px-4 py-2.5">
+                        <SignalBadge signal={item.signal} />
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-8 text-center text-sm text-text-secondary">
+                      지표 데이터 부족으로 계산 결과를 표시할 수 없습니다.
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
@@ -142,62 +160,28 @@ const TechnicalView: React.FC<TechnicalViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {movingAverageRows.map((item) => (
-                  <tr key={item.period} className="transition-colors hover:bg-surface-3">
-                    <td className="px-4 py-2.5 font-medium">{item.period}</td>
-                    <td className="px-4 py-2.5 text-right font-mono">{item.sma ?? '-'}</td>
-                    <td className="px-4 py-2.5 text-right font-mono">{item.ema ?? '-'}</td>
-                    <td className="flex justify-center px-4 py-2.5">
-                      <SignalBadge signal={item.signal} />
+                {movingAverageRows.length > 0 ? (
+                  movingAverageRows.map((item) => (
+                    <tr key={item.period} className="transition-colors hover:bg-surface-3">
+                      <td className="px-4 py-2.5 font-medium">{item.period}</td>
+                      <td className="px-4 py-2.5 text-right font-mono">{item.sma ?? '-'}</td>
+                      <td className="px-4 py-2.5 text-right font-mono">{item.ema ?? '-'}</td>
+                      <td className="flex justify-center px-4 py-2.5">
+                        <SignalBadge signal={item.signal} />
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-8 text-center text-sm text-text-secondary">
+                      이동평균 데이터 부족으로 계산 결과를 표시할 수 없습니다.
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
         </div>
-      </div>
-
-      <div className="card">
-        <button
-          onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-          className="flex w-full items-center justify-between p-4 transition-colors hover:bg-surface-3"
-        >
-          <div className="flex items-center gap-2">
-            <Settings size={18} className="text-text-tertiary" />
-            <span className="text-sm font-bold">지표 파라미터</span>
-          </div>
-          {isSettingsOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-        </button>
-        {isSettingsOpen && (
-          <div className="grid grid-cols-1 gap-8 border-t border-border p-6 md:grid-cols-2 lg:grid-cols-3">
-            <div className="space-y-4">
-              <h4 className="text-xs font-bold uppercase text-text-tertiary">RSI</h4>
-              <input
-                type="number"
-                defaultValue={14}
-                className="rounded-card bg-surface-3 px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-brand-primary"
-              />
-            </div>
-            <div className="space-y-4">
-              <h4 className="text-xs font-bold uppercase text-text-tertiary">MACD</h4>
-              <div className="grid grid-cols-3 gap-4">
-                {[12, 26, 9].map((value) => (
-                  <input
-                    key={value}
-                    type="number"
-                    defaultValue={value}
-                    className="rounded-card bg-surface-3 px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-brand-primary"
-                  />
-                ))}
-              </div>
-            </div>
-            <div className="flex items-end gap-3">
-              <button className="btn-primary flex-1 py-2">적용</button>
-              <button className="btn-secondary flex-1 py-2">초기화</button>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

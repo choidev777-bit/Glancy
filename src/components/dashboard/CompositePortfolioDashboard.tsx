@@ -1,34 +1,46 @@
-import { useEffect, useMemo, useState } from 'react';
-import { BarChart3, CheckCircle2, FileText, LineChart, PieChart, ShieldCheck } from 'lucide-react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { LineChart } from 'lucide-react';
 import Gauge from '../common/Gauge';
 import MonthlyReturnsHeatmap from '../visualization/MonthlyReturnsHeatmap';
 import NormalizedComparisonChart from '../visualization/NormalizedComparisonChart';
 import PortfolioDonut from '../visualization/PortfolioDonut';
 import { api } from '../../lib/api';
+import type { Candle, IndicatorsResponse, MovingAverage } from '../../lib/api';
 import type { UploadAnalysisResult } from '../../lib/chart-spec';
+import { DEFAULT_CHART_TIMEFRAME, type ChartTimeframe } from '../../lib/timeframes';
+import SummaryView, { type SummaryViewData } from '../analysis/SummaryView';
+import FundamentalView, { type FundamentalViewData, type FundamentalViewCategory } from '../analysis/FundamentalView';
 import {
   compositeHoldings,
   compositeSummary,
+  createCompositeFundamentalView,
   cumulativePortfolioSeries,
   drawdownSeries,
-  evidenceRows,
+  getCompositeOhlcvSnapshot,
   monthlyReturns,
   normalizedSeries,
   type CompositeHolding,
+  type CompositeTechnicalData,
 } from '../../data/compositePortfolio';
 
-type CompositeTab = 'summary' | 'performance' | 'allocation' | 'assets' | 'evidence';
+type CompositeTab = 'summary' | 'performance' | 'allocation' | 'assets';
+type AssetAnalysisTab = 'summary' | 'technical' | 'fundamental';
+
+const PORTFOLIO_CHART_TIMEFRAMES: ChartTimeframe[] = ['1D', '1W', '1M'];
+const PORTFOLIO_SPARKLINE_DATE_LABELS = ['01-01', '02-15', '03-31'];
+
+const TechnicalView = lazy(() => import('../analysis/TechnicalView'));
 
 interface CompositePortfolioDashboardProps {
   result?: UploadAnalysisResult;
   loadSample?: boolean;
+  theme?: 'dark' | 'light';
 }
 
 interface CompositeDashboardData {
   summary: typeof compositeSummary;
   holdings: CompositeHolding[];
   monthlyReturns: typeof monthlyReturns;
-  evidenceRows: typeof evidenceRows;
 }
 
 const TABS: Array<{ id: CompositeTab; label: string }> = [
@@ -36,13 +48,87 @@ const TABS: Array<{ id: CompositeTab; label: string }> = [
   { id: 'performance', label: '성과/리스크' },
   { id: 'allocation', label: '자산 배분' },
   { id: 'assets', label: '개별 자산 분석' },
-  { id: 'evidence', label: '데이터 근거' },
 ];
 
 const assetKindLabels: Record<CompositeHolding['kind'], string> = {
   stock: '주식형',
   etf: 'ETF형',
   crypto: '암호자산형',
+};
+
+const cleanHoldingText: Record<string, Pick<CompositeHolding, 'name' | 'market' | 'technicalSignal' | 'foundationSignal' | 'fundamentals'>> = {
+  '005930': {
+    name: '삼성전자',
+    market: '한국 주식',
+    technicalSignal: '중립 이상',
+    foundationSignal: '견조',
+    fundamentals: [
+      { label: 'PER', value: '14.2x' },
+      { label: 'PBR', value: '1.32x' },
+      { label: 'ROE', value: '12.5%' },
+      { label: '배당수익률', value: '2.1%' },
+    ],
+  },
+  AAPL: {
+    name: 'Apple',
+    market: '미국 주식',
+    technicalSignal: '상승 추세',
+    foundationSignal: '우수',
+    fundamentals: [
+      { label: 'PER', value: '28.4x' },
+      { label: 'PBR', value: '39.1x' },
+      { label: 'ROE', value: '152%' },
+      { label: 'EPS 성장률', value: '+7.8%' },
+    ],
+  },
+  MSFT: {
+    name: 'Microsoft',
+    market: '미국 주식',
+    technicalSignal: '상승 추세',
+    foundationSignal: '우수',
+    fundamentals: [
+      { label: 'PER', value: '32.0x' },
+      { label: '영업이익률', value: '44.6%' },
+      { label: 'ROE', value: '37.1%' },
+      { label: '매출 성장률', value: '+13.5%' },
+    ],
+  },
+  SPY: {
+    name: 'SPDR S&P 500 ETF',
+    market: 'ETF',
+    technicalSignal: '완만한 상승',
+    foundationSignal: '시장 대표',
+    fundamentals: [
+      { label: '비용보수', value: '0.09%' },
+      { label: 'AUM', value: '$500B+' },
+      { label: '추적 대상', value: 'S&P 500' },
+      { label: '배당수익률', value: '1.3%' },
+    ],
+  },
+  BTC: {
+    name: 'Bitcoin',
+    market: '암호화폐',
+    technicalSignal: '고변동 상승',
+    foundationSignal: '위험 높음',
+    fundamentals: [
+      { label: '시가총액', value: '$1.3T' },
+      { label: '거래대금', value: '$38B' },
+      { label: '공급량', value: '21M 한도' },
+      { label: '변동성', value: '높음' },
+    ],
+  },
+  GLD: {
+    name: 'SPDR Gold Shares',
+    market: 'ETF',
+    technicalSignal: '방어적 상승',
+    foundationSignal: '대체자산',
+    fundamentals: [
+      { label: '비용보수', value: '0.40%' },
+      { label: 'AUM', value: '$60B+' },
+      { label: '추적 대상', value: '금 현물' },
+      { label: '자산 성격', value: '방어/분산' },
+    ],
+  },
 };
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -62,51 +148,331 @@ function asString(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.length > 0 ? value : fallback;
 }
 
+function asBoolean(value: unknown, fallback: boolean): boolean {
+  return typeof value === 'boolean' ? value : fallback;
+}
+
+function asStringArray(value: unknown, fallback: string[]): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.length > 0) : fallback;
+}
+
 function formatPercent(value: number) {
   return `${value >= 0 ? '+' : ''}${(value * 100).toFixed(1)}%`;
 }
 
-function toHolding(asset: Record<string, unknown>, fallback: CompositeHolding): CompositeHolding {
-  const kind = asString(asset.kind, fallback.kind) as CompositeHolding['kind'];
+function formatSparklinePercent(value: number) {
+  return formatPercent(value);
+}
+
+function cleanHolding(holding: CompositeHolding): CompositeHolding {
+  const override = cleanHoldingText[holding.ticker];
+  return override ? { ...holding, ...override } : holding;
+}
+
+function parseCandleRows(value: unknown): Candle[] {
+  return asArray(value)
+    .map((row) => ({
+      time: asNumber(row.time, Number.NaN),
+      open: asNumber(row.open, Number.NaN),
+      high: asNumber(row.high, Number.NaN),
+      low: asNumber(row.low, Number.NaN),
+      close: asNumber(row.close, Number.NaN),
+      volume: asNumber(row.volume, 0),
+    }))
+    .filter((row) => [row.time, row.open, row.high, row.low, row.close].every(Number.isFinite))
+    .sort((a, b) => a.time - b.time);
+}
+
+function parseMovingAverageRows(value: unknown, fallback: MovingAverage[]): MovingAverage[] {
+  const rows = asArray(value)
+    .map((row) => ({
+      period: asNumber(row.period, Number.NaN),
+      sma: row.sma == null ? null : asNumber(row.sma, Number.NaN),
+      ema: row.ema == null ? null : asNumber(row.ema, Number.NaN),
+      signal: asString(row.signal, '중립'),
+      score: asNumber(row.score, 50),
+    }))
+    .filter((row) => Number.isFinite(row.period));
+  return rows.length ? rows : fallback;
+}
+
+function parseFundamentalHistory(value: unknown, fallback: FundamentalViewData['history'] = []): FundamentalViewData['history'] {
+  const history = asArray(value)
+    .map((metric) => {
+      const points = asArray(metric.history)
+        .map((point) => ({
+          quarter: asString(point.quarter, ''),
+          value: asNumber(point.value, Number.NaN),
+        }))
+        .filter((point) => point.quarter && Number.isFinite(point.value));
+      const direction = asString(metric.direction, 'higher-better');
+      return {
+        label: asString(metric.label, ''),
+        unit: asString(metric.unit, ''),
+        direction: direction === 'lower-better' ? 'lower-better' as const : 'higher-better' as const,
+        history: points,
+      };
+    })
+    .filter((metric) => metric.label && metric.history.length > 0);
+  return history.length ? history : fallback;
+}
+
+function fallbackIndicators(holding: CompositeHolding, candles: Candle[] = getCompositeOhlcvSnapshot(holding.ticker)): IndicatorsResponse {
+  const last = candles[candles.length - 1]?.close ?? 0;
+  const previous = candles[candles.length - 2]?.close ?? last;
+  const momentum = previous ? ((last - previous) / previous) * 100 : 0;
+  const baseSignal = holding.technicalScore >= 70 ? '매수' : holding.technicalScore <= 45 ? '매도' : '중립';
+  const recent = candles.slice(-14);
+  const recentHigh = Math.max(...recent.map((candle) => candle.high), last);
+  const recentLow = Math.min(...recent.map((candle) => candle.low), last);
+  const recentRange = recentHigh - recentLow || 1;
+  const recentAverage = recent.length ? recent.reduce((sum, candle) => sum + candle.close, 0) / recent.length : last;
+  const stoch = Math.max(0, Math.min(100, ((last - recentLow) / recentRange) * 100));
+  const stochRsi = Math.max(0, Math.min(100, holding.technicalScore + holding.returnRate * 120));
+  const williams = -100 + stoch;
+  const cciValue = ((last - ((recentHigh + recentLow + last) / 3)) / recentRange) * 200;
+  const atrValue = recent.length ? recent.reduce((sum, candle) => sum + (candle.high - candle.low), 0) / recent.length : 0;
+  const highsLows = last - recentAverage;
+  const ultimate = Math.max(0, Math.min(100, 50 + holding.returnRate * 140));
+  const bullBear = last - recentAverage;
+  return {
+    indicators: [
+      { name: 'RSI(14)', value: Math.max(25, Math.min(78, holding.technicalScore)).toFixed(1), signal: baseSignal },
+      { name: 'STOCH(9,6)', value: stoch.toFixed(2), signal: stoch >= 60 ? '매수' : '중립' },
+      { name: 'STOCHRSI(14)', value: stochRsi.toFixed(2), signal: stochRsi >= 80 ? '과매수' : stochRsi >= 60 ? '매수' : '중립' },
+      { name: 'MACD(12,26)', value: momentum.toFixed(2), signal: momentum >= 0 ? '매수' : '매도' },
+      { name: 'ADX(14)', value: Math.max(12, Math.min(45, Math.abs(holding.returnRate) * 160)).toFixed(2), signal: '중립' },
+      { name: 'Williams %R', value: williams.toFixed(2), signal: williams > -50 ? '매수' : '중립' },
+      { name: 'CCI(14)', value: cciValue.toFixed(2), signal: cciValue >= 0 ? '매수' : '매도' },
+      { name: 'ATR(14)', value: atrValue.toFixed(2), signal: '변동성 보통' },
+      { name: 'Highs/Lows(14)', value: highsLows.toFixed(2), signal: highsLows >= 0 ? '매수' : '매도' },
+      { name: 'Ultimate Oscillator', value: ultimate.toFixed(2), signal: ultimate >= 60 ? '매수' : '중립' },
+      { name: 'ROC(12)', value: (holding.returnRate * 100).toFixed(2), signal: holding.returnRate >= 0 ? '매수' : '매도' },
+      { name: 'Bull/Bear Power', value: bullBear.toFixed(2), signal: bullBear >= 0 ? '매수' : '매도' },
+      { name: 'OBV(5)', value: recent.reduce((sum, candle) => sum + candle.volume, 0).toFixed(0), signal: '중립' },
+    ],
+    moving_averages: [5, 10, 20, 50, 100, 200].map((period) => ({
+      period,
+      sma: Math.round(last * (1 - period / 2000) * 100) / 100,
+      ema: Math.round(last * (1 - period / 2300) * 100) / 100,
+      signal: baseSignal,
+      score: holding.technicalScore,
+    })),
+    gauges: {
+      technical: { percent: holding.technicalScore, signal: holding.technicalSignal },
+      moving_average: { percent: Math.max(40, holding.technicalScore - 4), signal: baseSignal },
+      overall: { percent: Math.round((holding.technicalScore + holding.foundationScore) / 2), signal: baseSignal },
+    },
+    insights: {
+      summary: `${holding.name}의 실제 과거 일봉 기준 기술 점수는 ${holding.technicalScore}%입니다. OHLCV 흐름과 이동평균, 모멘텀을 함께 본 요약입니다.`,
+    },
+  };
+}
+
+function fallbackTechnical(holding: CompositeHolding): CompositeTechnicalData {
+  const candles = getCompositeOhlcvSnapshot(holding.ticker);
+  return {
+    candles,
+    hasOhlcv: candles.length > 0,
+    indicators: fallbackIndicators(holding, candles),
+  };
+}
+
+function fallbackSummary(holding: CompositeHolding): SummaryViewData {
+  return {
+    overall: holding.returnRate >= 0 ? '긍정' : '주의',
+    score: Math.round((holding.technicalScore + holding.foundationScore) / 2),
+    insights: `${holding.name}는 포트폴리오에서 ${formatPercent(holding.weight).replace('+', '')} 비중을 차지하며 ${formatPercent(holding.returnRate)} 수익률을 기록했습니다. 기술 점수와 기초 점수를 함께 보면 단일 가격 흐름보다 역할과 위험을 더 균형 있게 판단할 수 있습니다.`,
+    tags: [holding.technicalSignal, holding.foundationSignal],
+    technical: {
+      score: holding.technicalScore,
+      indicators: fallbackIndicators(holding).indicators.slice(0, 4),
+    },
+    fundamental: {
+      score: holding.foundationScore,
+      values: holding.fundamentals.slice(0, 4).map((item) => ({ name: item.label, value: item.value })),
+    },
+  };
+}
+
+function fallbackFundamental(holding: CompositeHolding): FundamentalViewData {
+  const generated = createCompositeFundamentalView(holding);
+  const titleByKind = {
+    stock: '주식 기초 분석',
+    etf: 'ETF 기초 분석',
+    crypto: '암호자산 기초 분석',
+  } satisfies Record<CompositeHolding['kind'], string>;
+  const categories: FundamentalViewCategory[] = [
+    {
+      title: titleByKind[holding.kind],
+      items: holding.fundamentals.map((item, index) => ({
+        label: item.label,
+        value: item.value,
+        position: Math.max(0.25, Math.min(0.9, holding.foundationScore / 100 - index * 0.06)),
+      })),
+    },
+    {
+      title: '포트폴리오 역할',
+      items: [
+        { label: '비중', value: formatPercent(holding.weight).replace('+', ''), position: holding.weight },
+        { label: '수익률', value: formatPercent(holding.returnRate), position: Math.max(0.1, Math.min(0.9, 0.5 + holding.returnRate)) },
+        { label: '변동성', value: formatPercent(holding.volatility).replace('+', ''), position: Math.max(0.1, Math.min(0.9, holding.volatility)) },
+      ],
+    },
+  ];
+  return {
+    title: `${holding.name} ${titleByKind[holding.kind]}`,
+    description:
+      holding.kind === 'stock'
+        ? '업로드 또는 실제 일봉 스냅샷에 포함된 밸류에이션, 수익성, 주주환원 지표를 요약합니다.'
+        : '주식 재무제표가 아니라 자산 유형에 맞는 비용, 규모, 위험, 포트폴리오 역할 지표를 요약합니다.',
+    supported: true,
+    categories,
+    history: generated.history ?? [],
+  };
+}
+
+function parseFundamentalData(value: unknown, fallback: FundamentalViewData): FundamentalViewData {
+  const record = asRecord(value);
+  const categories = asArray(record.categories)
+    .map((category) => ({
+      title: asString(category.title, ''),
+      items: asArray(category.items).map((item) => ({
+        label: asString(item.label, ''),
+        value: asString(item.value, String(item.value ?? '')),
+        position: asNumber(item.position, 0.5),
+      })).filter((item) => item.label),
+    }))
+    .filter((category) => category.title && category.items.length);
+
+  if (!categories.length) return fallback;
+  return {
+    title: asString(record.title, fallback.title ?? '기본적 분석'),
+    description: asString(record.description, fallback.description ?? ''),
+    supported: asBoolean(record.supported, true),
+    emptyMessage: asString(record.emptyMessage, fallback.emptyMessage ?? ''),
+    categories,
+    history: parseFundamentalHistory(record.history, fallback.history ?? []),
+  };
+}
+
+function parseTechnicalData(value: unknown, fallback: CompositeTechnicalData): CompositeTechnicalData {
+  const record = asRecord(value);
+  if (!Object.keys(record).length) return fallback;
+  const candles = parseCandleRows(record.candles);
+  const fallbackIndicatorsData = fallback.indicators;
+  const indicators = asArray(record.indicators).map((row) => ({
+    name: asString(row.name, ''),
+    value: asString(row.value, String(row.value ?? '')),
+    signal: asString(row.signal, '중립'),
+    score: asNumber(row.score, 50),
+  })).filter((row) => row.name);
+  const movingAverages = parseMovingAverageRows(record.moving_averages, fallbackIndicatorsData.moving_averages);
+  const gauges = asRecord(record.gauges);
+  const hasOhlcv = asBoolean(record.has_ohlcv, candles.length > 0 || fallback.hasOhlcv);
+  return {
+    candles: hasOhlcv ? (candles.length ? candles : fallback.candles) : [],
+    hasOhlcv,
+    indicators: {
+      ...fallbackIndicatorsData,
+      indicators: indicators.length ? indicators : fallbackIndicatorsData.indicators,
+      moving_averages: movingAverages,
+      gauges: Object.keys(gauges).length ? gauges as IndicatorsResponse['gauges'] : fallbackIndicatorsData.gauges,
+      insights: {
+        summary: asString(record.insight, fallbackIndicatorsData.insights?.summary ?? ''),
+      },
+    },
+  };
+}
+
+function parseSummaryData(asset: Record<string, unknown>, fallback: SummaryViewData, technical: CompositeTechnicalData): SummaryViewData {
+  const record = asRecord(asset.summary);
+  if (!Object.keys(record).length) return fallback;
   const fundamentals = asRecord(asset.fundamentals);
   return {
-    ...fallback,
-    ticker: asString(asset.ticker, fallback.ticker),
-    name: asString(asset.name, fallback.name),
-    market: asString(asset.market, fallback.market),
-    kind: kind in assetKindLabels ? kind : fallback.kind,
-    weight: asNumber(asset.weight, fallback.weight),
-    returnRate: asNumber(asset.return_rate, fallback.returnRate),
-    contribution: asNumber(asset.contribution, fallback.contribution),
-    volatility: asNumber(asset.volatility, fallback.volatility),
-    technicalScore: asNumber(asset.technical_score, fallback.technicalScore),
-    foundationScore: asNumber(asset.foundation_score, fallback.foundationScore),
-    technicalSignal: asString(asset.technical_signal, fallback.technicalSignal),
-    foundationSignal: asString(asset.foundation_signal, fallback.foundationSignal),
+    overall: asString(record.overallSignal, fallback.overall),
+    score: asNumber(asset.technical_score, fallback.score),
+    insights: asString(record.insight, fallback.insights),
+    tags: asStringArray(record.tags, fallback.tags ?? []),
+    technical: {
+      score: asNumber(asset.technical_score, fallback.technical.score),
+      indicators: technical.indicators.indicators.slice(0, 4),
+    },
+    fundamental: {
+      score: asNumber(asset.foundation_score, fallback.fundamental.score),
+      values: Object.keys(fundamentals).length
+        ? Object.entries(fundamentals).slice(0, 4).map(([name, value]) => ({ name, value: String(value) }))
+        : fallback.fundamental.values,
+    },
+  };
+}
+
+function toHolding(asset: Record<string, unknown>, fallback: CompositeHolding, uploaded = false): CompositeHolding {
+  const cleanFallback = cleanHolding(fallback);
+  const kind = asString(asset.kind, cleanFallback.kind) as CompositeHolding['kind'];
+  const fundamentals = asRecord(asset.fundamentals);
+  const base: CompositeHolding = {
+    ...cleanFallback,
+    ticker: asString(asset.ticker, cleanFallback.ticker),
+    name: asString(asset.name, cleanFallback.name),
+    market: asString(asset.market, cleanFallback.market),
+    kind: kind in assetKindLabels ? kind : cleanFallback.kind,
+    weight: asNumber(asset.weight, cleanFallback.weight),
+    returnRate: asNumber(asset.return_rate, cleanFallback.returnRate),
+    contribution: asNumber(asset.contribution, cleanFallback.contribution),
+    volatility: asNumber(asset.volatility, cleanFallback.volatility),
+    technicalScore: asNumber(asset.technical_score, cleanFallback.technicalScore),
+    foundationScore: asNumber(asset.foundation_score, cleanFallback.foundationScore),
+    technicalSignal: asString(asset.technical_signal, cleanFallback.technicalSignal),
+    foundationSignal: asString(asset.foundation_signal, cleanFallback.foundationSignal),
     fundamentals: Object.keys(fundamentals).length
       ? Object.entries(fundamentals).map(([label, value]) => ({ label, value: String(value) }))
-      : fallback.fundamentals,
+      : cleanFallback.fundamentals,
+  };
+  const technicalFallbackBase = cleanHolding(base);
+  const fallbackTechnicalData = cleanFallback.technical ?? (uploaded ? { candles: [], hasOhlcv: false, indicators: fallbackIndicators(technicalFallbackBase, []) } : fallbackTechnical(technicalFallbackBase));
+  const technical = parseTechnicalData(asset.technical, fallbackTechnicalData);
+  const fallbackSummaryData = cleanFallback.summary ?? fallbackSummary(technicalFallbackBase);
+  const fundamental = parseFundamentalData(asset.fundamental, cleanFallback.fundamental ?? fallbackFundamental(technicalFallbackBase));
+  return {
+    ...technicalFallbackBase,
+    assetHeader: { dataBasis: uploaded ? '업로드 CSV 기준' : '실제 과거 일봉 기준' },
+    summary: parseSummaryData(asset, fallbackSummaryData, technical),
+    technical,
+    fundamental,
+  };
+}
+
+function fallbackSummaryBlock() {
+  return {
+    ...compositeSummary,
+    title: '종합 포트폴리오 분석',
+    subtitle: '삼성전자 · AAPL · MSFT · SPY · BTC · GLD',
+    period: compositeSummary.period,
+    status: '',
+    krwValue: '128,450,000원',
+    usdValue: '$92,400',
+    signalLabel: '균형',
   };
 }
 
 function buildData(result?: UploadAnalysisResult, uploaded = false): CompositeDashboardData {
+  const fallbackHoldings = compositeHoldings.map(cleanHolding);
   if (result?.type !== 'composite_portfolio') {
-    return { summary: compositeSummary, holdings: compositeHoldings, monthlyReturns, evidenceRows };
+    return { summary: fallbackSummaryBlock(), holdings: fallbackHoldings, monthlyReturns };
   }
 
   const summary = asRecord(result.summary);
   const performance = asRecord(result.performance);
   const period = asRecord(summary.period);
-  const dataQuality = asRecord(result.data_quality);
-  const sections = asRecord(dataQuality.sections);
-  const fallbackByTicker = new Map(compositeHoldings.map((holding) => [holding.ticker, holding]));
+  const fallbackByTicker = new Map(fallbackHoldings.map((holding) => [holding.ticker, holding]));
   const resultAssets = asArray(result.assets);
   const holdings = resultAssets.length
     ? resultAssets.map((asset, index) => {
-      const ticker = asString(asset.ticker, compositeHoldings[index]?.ticker ?? '');
-      return toHolding(asset, fallbackByTicker.get(ticker) ?? compositeHoldings[index] ?? compositeHoldings[0]);
+      const ticker = asString(asset.ticker, fallbackHoldings[index]?.ticker ?? '');
+      return toHolding(asset, fallbackByTicker.get(ticker) ?? fallbackHoldings[index] ?? fallbackHoldings[0], uploaded);
     })
-    : compositeHoldings;
+    : fallbackHoldings;
 
   const apiMonthlyReturns = asArray(performance.monthly_returns)
     .map((row) => ({ period: asString(row.period, ''), return: asNumber(row.return, 0) }))
@@ -114,11 +480,11 @@ function buildData(result?: UploadAnalysisResult, uploaded = false): CompositeDa
 
   return {
     summary: {
-      ...compositeSummary,
-      title: asString(summary.title, compositeSummary.title),
+      ...fallbackSummaryBlock(),
+      title: asString(summary.title, '종합 포트폴리오 분석'),
       subtitle: holdings.map((holding) => holding.ticker).join(' · '),
-      period: [period.start, period.end].filter(Boolean).join(' ~ ') || compositeSummary.period,
-      status: uploaded ? '업로드 종합 데이터 분석 완료' : '샘플 API 종합 데이터 분석 완료',
+      period: [period.start, period.end].filter(Boolean).join(' ~ ') || fallbackSummaryBlock().period,
+      status: '',
       totalReturn: asNumber(summary.total_return, compositeSummary.totalReturn),
       volatility: asNumber(summary.volatility, compositeSummary.volatility),
       maxDrawdown: asNumber(summary.max_drawdown, compositeSummary.maxDrawdown),
@@ -127,20 +493,25 @@ function buildData(result?: UploadAnalysisResult, uploaded = false): CompositeDa
     },
     holdings,
     monthlyReturns: apiMonthlyReturns.length ? apiMonthlyReturns : monthlyReturns,
-    evidenceRows: Object.keys(sections).length
-      ? Object.entries(sections).map(([section, rows]) => ({
-        section,
-        rows: asNumber(rows, 0),
-        description: `${section} 섹션에서 감지된 원본 행`,
-      }))
-      : evidenceRows,
   };
 }
 
-function Sparkline({ values, positive = true, label }: { values: number[]; positive?: boolean; label: string }) {
+interface SparklineProps {
+  values: number[];
+  positive?: boolean;
+  label: string;
+  annotated?: boolean;
+  valueFormatter?: (value: number) => string;
+  showExtremum?: boolean;
+  dateLabels?: string[];
+}
+
+function Sparkline({ values, positive = true, label, annotated = false, valueFormatter = (value) => value.toFixed(1), showExtremum = false, dateLabels = [] }: SparklineProps) {
   const min = Math.min(...values);
   const max = Math.max(...values);
   const range = max - min || 1;
+  const first = values[0] ?? 0;
+  const last = values.length ? values[values.length - 1] : first;
   const path = values
     .map((value, index) => {
       const x = (index / Math.max(1, values.length - 1)) * 100;
@@ -149,8 +520,15 @@ function Sparkline({ values, positive = true, label }: { values: number[]; posit
     })
     .join(' ');
 
-  return (
-    <svg viewBox="0 0 100 100" className="h-48 w-full" preserveAspectRatio="none" role="img" aria-label={label}>
+  const line = (
+    <svg viewBox={annotated ? '-2 0 104 100' : '0 0 100 100'} className="h-full w-full" preserveAspectRatio="none" aria-hidden={annotated ? 'true' : undefined} role={annotated ? undefined : 'img'} aria-label={annotated ? undefined : label}>
+      {annotated && (
+        <>
+          <line x1="0" x2="100" y1="88" y2="88" stroke="var(--border)" strokeWidth="0.35" vectorEffect="non-scaling-stroke" />
+          <line x1="0" x2="100" y1="50" y2="50" stroke="var(--border)" strokeDasharray="2 2" strokeWidth="0.25" vectorEffect="non-scaling-stroke" />
+          <line x1="0" x2="100" y1="12" y2="12" stroke="var(--border)" strokeWidth="0.25" vectorEffect="non-scaling-stroke" />
+        </>
+      )}
       <polyline
         points={path}
         fill="none"
@@ -160,56 +538,98 @@ function Sparkline({ values, positive = true, label }: { values: number[]; posit
       />
     </svg>
   );
+
+  if (!annotated) {
+    return <div className="h-48 w-full" role="img" aria-label={label}>{line}</div>;
+  }
+
+  const yForValue = (value: number) => 88 - ((value - min) / range) * 76;
+  const clampLabelY = (value: number) => Math.max(10, Math.min(86, value));
+  const firstLabelY = clampLabelY(yForValue(first));
+  const lastLabelY = clampLabelY(yForValue(last));
+  const extremum = positive ? max : min;
+  const extremumIndex = Math.max(0, values.indexOf(extremum));
+  const extremumX = (extremumIndex / Math.max(1, values.length - 1)) * 100;
+  const extremumLabelY = clampLabelY(yForValue(extremum));
+
+  return (
+    <div className="relative h-52 w-full pl-16 pr-20" role="img" aria-label={`${label}: ${valueFormatter(first)}에서 ${valueFormatter(last)}로 변화`}>
+      <div
+        className="pointer-events-none absolute left-2 font-mono text-sm text-text-secondary"
+        style={{ top: `${firstLabelY}%`, transform: 'translateY(-50%)' }}
+      >
+        {valueFormatter(first)}
+      </div>
+      <div
+        className="pointer-events-none absolute right-2 font-mono text-sm text-text-secondary"
+        style={{ top: `${lastLabelY}%`, transform: 'translateY(-50%)' }}
+      >
+        {valueFormatter(last)}
+      </div>
+      <div className="relative h-full">
+        {line}
+        {showExtremum && (
+          <div
+            className={`pointer-events-none absolute rounded-pill bg-surface-2 px-2 py-0.5 font-mono text-xs font-bold ${positive ? 'text-positive' : 'text-negative'}`}
+            style={{ left: `${extremumX}%`, top: `${extremumLabelY}%`, transform: 'translate(-50%, -50%)' }}
+          >
+            {valueFormatter(extremum)}
+          </div>
+        )}
+        {dateLabels.length > 0 && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex translate-y-1 justify-between font-mono text-xs font-bold text-text-tertiary">
+            {dateLabels.map((dateLabel) => (
+              <span key={dateLabel}>{dateLabel}</span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function MetricCard({ label, value, tone = 'neutral' }: { label: string; value: string; tone?: 'positive' | 'negative' | 'neutral' }) {
   const toneClass = tone === 'positive' ? 'text-positive' : tone === 'negative' ? 'text-negative' : 'text-text-primary';
   return (
-    <div className="rounded-card bg-surface-1 p-4">
+    <div className="rounded-card border border-border bg-surface-2 p-4 shadow-subtle">
       <div className="text-[11px] font-bold uppercase text-text-tertiary">{label}</div>
       <div className={`mt-2 font-mono text-2xl font-bold ${toneClass}`}>{value}</div>
     </div>
   );
 }
 
-function SectionHeader({ eyebrow, title, children }: { eyebrow: string; title: string; children: string }) {
+function PerformanceSnapshot({ values }: { values: number[] }) {
+  const first = values[0] ?? 100;
+  const last = values.length ? values[values.length - 1] : first;
+  const change = first ? (last / first) - 1 : 0;
   return (
-    <div className="card p-5">
-      <div className="text-[11px] font-bold uppercase text-brand-primary">{eyebrow}</div>
-      <h2 className="mt-1 text-xl font-bold">{title}</h2>
-      <p className="mt-2 max-w-4xl text-sm leading-relaxed text-text-secondary">{children}</p>
-    </div>
-  );
-}
-
-function RequirementCard({ icon, title, children }: { icon: JSX.Element; title: string; children: string }) {
-  return (
-    <div className="card p-5">
-      <div className="mb-4 flex items-center gap-3">
-        <div className="rounded-card bg-brand-primary/10 p-2 text-brand-primary">{icon}</div>
-        <h3 className="font-bold">{title}</h3>
+    <div className="grid grid-cols-3 gap-2">
+      <div className="rounded-card bg-surface-1 p-3">
+        <div className="text-[11px] font-bold text-text-tertiary">시작</div>
+        <div className="mt-1 font-mono text-lg font-bold">{first.toFixed(1)}</div>
       </div>
-      <p className="text-sm leading-relaxed text-text-secondary">{children}</p>
+      <div className="rounded-card bg-surface-1 p-3">
+        <div className="text-[11px] font-bold text-text-tertiary">현재</div>
+        <div className="mt-1 font-mono text-lg font-bold">{last.toFixed(1)}</div>
+      </div>
+      <div className="rounded-card bg-surface-1 p-3">
+        <div className="text-[11px] font-bold text-text-tertiary">변화율</div>
+        <div className={`mt-1 font-mono text-lg font-bold ${change >= 0 ? 'text-positive' : 'text-negative'}`}>{formatPercent(change)}</div>
+      </div>
     </div>
   );
 }
 
-function SummaryTab({ summary }: { summary: typeof compositeSummary }) {
+function SummaryTab({ summary, holdings }: { summary: typeof compositeSummary; holdings: CompositeHolding[] }) {
   return (
     <div className="space-y-6">
-      <div className="card flex flex-col items-center gap-8 p-8 lg:flex-row">
-        <Gauge score={summary.signalScore} label={summary.signalLabel} title="종합 시그널" size={250} />
-        <div className="flex-1 space-y-4 text-center lg:text-left">
-          <h2 className="text-2xl font-bold">분산은 확보했고, 성장 자산 비중은 관리 가능한 수준입니다.</h2>
-          <p className="max-w-3xl leading-relaxed text-text-secondary">
-            미국 대형주와 SPY가 중심 수익원을 만들고, 삼성전자와 GLD가 지역/자산군 분산을 보완합니다.
-            BTC는 수익 기여도가 높지만 변동성도 크기 때문에 전체 비중을 제한한 구성이 합리적입니다.
-          </p>
-          <div className="flex flex-wrap justify-center gap-3 lg:justify-start">
-            <span className="rounded-card bg-positive/10 px-4 py-2 text-sm font-bold text-positive">수익률 양호</span>
-            <span className="rounded-card bg-info/10 px-4 py-2 text-sm font-bold text-info">분산 효과 보통 이상</span>
-            <span className="rounded-card bg-warning/10 px-4 py-2 text-sm font-bold text-warning">BTC 변동성 주의</span>
-          </div>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.85fr_1.15fr]">
+        <div className="card flex items-center justify-center p-6">
+          <Gauge score={summary.signalScore} label={summary.signalLabel} title="종합 시그널" size={220} />
+        </div>
+        <div className="card p-5">
+          <h3 className="mb-4 font-bold">포트폴리오 비중</h3>
+          <PortfolioDonut holdings={holdings.map((holding) => ({ ticker: holding.ticker, weight: holding.weight }))} />
         </div>
       </div>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -218,16 +638,18 @@ function SummaryTab({ summary }: { summary: typeof compositeSummary }) {
         <MetricCard label="최대 낙폭" value={formatPercent(summary.maxDrawdown)} tone="negative" />
         <MetricCard label="Sharpe 비율" value={summary.sharpe.toFixed(2)} tone="positive" />
       </div>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <RequirementCard icon={<BarChart3 size={20} aria-hidden="true" />} title="분석">
-          수익률, 변동성, 최대 낙폭, 샤프 비율, 집중도, 자산별 기술/기초 지표를 계산합니다.
-        </RequirementCard>
-        <RequirementCard icon={<PieChart size={20} aria-hidden="true" />} title="시각화">
-          자산 배분, 성과 흐름, 낙폭, 월별 수익률, 개별 자산 비교를 BI 카드로 구성합니다.
-        </RequirementCard>
-        <RequirementCard icon={<ShieldCheck size={20} aria-hidden="true" />} title="인사이트">
-          숫자와 차트만 나열하지 않고, 위험 요인과 분산 효과를 한국어 판단 문장으로 요약합니다.
-        </RequirementCard>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <div className="card p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="font-bold">포트폴리오 누적 성과</h3>
+            <LineChart size={18} className="text-brand-primary" aria-hidden="true" />
+          </div>
+          <PerformanceSnapshot values={cumulativePortfolioSeries} />
+          <div className="mt-4 rounded-card bg-surface-1 p-4">
+            <Sparkline values={cumulativePortfolioSeries} label="포트폴리오 누적 성과" annotated dateLabels={PORTFOLIO_SPARKLINE_DATE_LABELS} />
+          </div>
+        </div>
+        <CompactHoldingsList holdings={holdings} />
       </div>
     </div>
   );
@@ -236,9 +658,6 @@ function SummaryTab({ summary }: { summary: typeof compositeSummary }) {
 function PerformanceTab({ monthlies }: { monthlies: typeof monthlyReturns }) {
   return (
     <div className="space-y-6">
-      <SectionHeader eyebrow="분석 + 시각화" title="성과와 위험을 같은 화면에서 비교">
-        수익률이 좋았는지뿐 아니라, 그 수익을 얻기 위해 감수한 낙폭과 변동성을 함께 봅니다.
-      </SectionHeader>
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <div className="card p-5">
           <div className="mb-4 flex items-center justify-between">
@@ -246,26 +665,22 @@ function PerformanceTab({ monthlies }: { monthlies: typeof monthlyReturns }) {
             <LineChart size={18} className="text-brand-primary" aria-hidden="true" />
           </div>
           <div className="rounded-card bg-surface-1 p-4">
-            <Sparkline values={cumulativePortfolioSeries} label="포트폴리오 누적 성과" />
+            <Sparkline values={cumulativePortfolioSeries} label="포트폴리오 누적 성과" annotated dateLabels={PORTFOLIO_SPARKLINE_DATE_LABELS} />
           </div>
-          <p className="mt-3 text-sm text-text-secondary">상승 구간 이후 조정이 있었지만 1분기 누적 성과는 플러스입니다.</p>
         </div>
         <div className="card p-5">
           <h3 className="mb-4 font-bold">자산별 정규화 가격 비교</h3>
           <NormalizedComparisonChart series={normalizedSeries} />
-          <p className="mt-3 text-sm text-text-secondary">BTC가 가장 높은 상승률을 보였지만 변동성 기여도도 가장 큽니다.</p>
         </div>
         <div className="card p-5">
           <h3 className="mb-4 font-bold">최대 낙폭 흐름</h3>
           <div className="rounded-card bg-surface-1 p-4">
-            <Sparkline values={drawdownSeries} positive={false} label="최대 낙폭 흐름" />
+            <Sparkline values={drawdownSeries} positive={false} label="최대 낙폭 흐름" annotated valueFormatter={formatSparklinePercent} showExtremum dateLabels={PORTFOLIO_SPARKLINE_DATE_LABELS} />
           </div>
-          <p className="mt-3 text-sm text-text-secondary">GLD 비중이 하락 구간의 완충 역할을 합니다.</p>
         </div>
         <div className="card p-5">
           <h3 className="mb-4 font-bold">월별 수익률</h3>
           <MonthlyReturnsHeatmap monthlyReturns={monthlies} />
-          <p className="mt-3 text-sm text-text-secondary">월별 수익률을 통해 성과가 특정 시점에 몰렸는지 확인합니다.</p>
         </div>
       </div>
     </div>
@@ -273,33 +688,46 @@ function PerformanceTab({ monthlies }: { monthlies: typeof monthlyReturns }) {
 }
 
 function AllocationTab({ holdings }: { holdings: CompositeHolding[] }) {
-  const concentration = holdings.slice(0, 3).reduce((sum, holding) => sum + holding.weight, 0);
   return (
     <div className="space-y-6">
-      <SectionHeader eyebrow="자산 배분" title="성장 자산과 방어 자산을 함께 배치">
-        미국 주식 중심의 성장 노출을 유지하되, 삼성전자와 GLD를 통해 지역/자산군 분산을 보완합니다.
-      </SectionHeader>
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className="card p-5">
-          <h3 className="mb-4 font-bold">포트폴리오 비중</h3>
-          <PortfolioDonut holdings={holdings.map((holding) => ({ ticker: holding.ticker, weight: holding.weight }))} />
-        </div>
-        <div className="card p-5">
-          <h3 className="mb-4 font-bold">분산 효과</h3>
-          <div className="space-y-3 text-sm text-text-secondary">
-            <p>AAPL, MSFT, SPY는 미국 주식시장 방향에 함께 민감합니다.</p>
-            <p>GLD는 주식/암호자산과 다른 성격의 방어 자산으로 하락 구간의 완충 역할을 기대할 수 있습니다.</p>
-            <div className="rounded-card bg-surface-1 p-4">
-              <div className="text-[11px] font-bold uppercase text-text-tertiary">상위 3개 비중</div>
-              <div className="mt-2 font-mono text-2xl font-bold">{formatPercent(concentration).replace('+', '')}</div>
-              <div className="mt-2 h-3 rounded-pill bg-surface-3">
-                <div className="h-full rounded-pill bg-brand-primary" style={{ width: `${concentration * 100}%` }} />
+      <div className="card p-5">
+        <h3 className="mb-4 font-bold">포트폴리오 비중</h3>
+        <PortfolioDonut holdings={holdings.map((holding) => ({ ticker: holding.ticker, weight: holding.weight }))} />
+      </div>
+      <HoldingsTable holdings={holdings} />
+    </div>
+  );
+}
+
+function CompactHoldingsList({ holdings }: { holdings: CompositeHolding[] }) {
+  return (
+    <div className="card p-5">
+      <h3 className="mb-4 font-bold">보유 자산 요약</h3>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {holdings.map((holding) => (
+          <div key={holding.ticker} className="rounded-card border border-border bg-surface-1 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="font-mono text-sm font-bold text-text-primary">{holding.ticker}</div>
+                <div className="mt-0.5 text-xs text-text-tertiary">{holding.name}</div>
+              </div>
+              <div className="font-mono text-sm font-bold">{formatPercent(holding.weight).replace('+', '')}</div>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+              <div className="rounded-card bg-surface-2 p-2">
+                <div className="text-text-tertiary">수익률</div>
+                <div className={`mt-1 font-mono font-bold ${holding.returnRate >= 0 ? 'text-positive' : 'text-negative'}`}>
+                  {formatPercent(holding.returnRate)}
+                </div>
+              </div>
+              <div className="rounded-card bg-surface-2 p-2">
+                <div className="text-text-tertiary">변동성</div>
+                <div className="mt-1 font-mono font-bold">{formatPercent(holding.volatility).replace('+', '')}</div>
               </div>
             </div>
           </div>
-        </div>
+        ))}
       </div>
-      <HoldingsTable holdings={holdings} />
     </div>
   );
 }
@@ -339,9 +767,14 @@ function HoldingsTable({ holdings }: { holdings: CompositeHolding[] }) {
   );
 }
 
-function AssetsTab({ holdings }: { holdings: CompositeHolding[] }) {
+function AssetsTab({ holdings, theme }: { holdings: CompositeHolding[]; theme: 'dark' | 'light' }) {
   const [selectedTicker, setSelectedTicker] = useState(holdings[0]?.ticker ?? compositeHoldings[0].ticker);
-  const selected = holdings.find((holding) => holding.ticker === selectedTicker) ?? holdings[0] ?? compositeHoldings[0];
+  const [activeAssetTab, setActiveAssetTab] = useState<AssetAnalysisTab>('summary');
+  const [chartTimeframe, setChartTimeframe] = useState<ChartTimeframe>(DEFAULT_CHART_TIMEFRAME);
+  const selected = holdings.find((holding) => holding.ticker === selectedTicker) ?? holdings[0] ?? cleanHolding(compositeHoldings[0]);
+  const selectedTechnical = selected.technical ?? fallbackTechnical(selected);
+  const selectedSummary = selected.summary ?? fallbackSummary(selected);
+  const selectedFundamental = selected.fundamental ?? fallbackFundamental(selected);
 
   useEffect(() => {
     if (!holdings.some((holding) => holding.ticker === selectedTicker)) {
@@ -349,17 +782,23 @@ function AssetsTab({ holdings }: { holdings: CompositeHolding[] }) {
     }
   }, [holdings, selectedTicker]);
 
+  const nestedTabs: Array<{ id: AssetAnalysisTab; label: string }> = [
+    { id: 'summary', label: '요약' },
+    { id: 'technical', label: '기술적 분석' },
+    { id: 'fundamental', label: '기본적 분석' },
+  ];
+
   return (
     <div className="space-y-6">
-      <SectionHeader eyebrow="개별 자산 분석" title="자산 유형별로 다른 기초 분석 템플릿 적용">
-        기술적 분석은 공통으로, 기초 분석은 주식형/ETF형/암호자산형에 맞게 다르게 보여줍니다.
-      </SectionHeader>
       <div className="flex gap-2 overflow-x-auto no-scrollbar">
         {holdings.map((holding) => (
           <button
             key={holding.ticker}
             type="button"
-            onClick={() => setSelectedTicker(holding.ticker)}
+            onClick={() => {
+              setSelectedTicker(holding.ticker);
+              setActiveAssetTab('summary');
+            }}
             className={`rounded-card px-4 py-2 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
               selectedTicker === holding.ticker ? 'bg-brand-primary text-white' : 'bg-surface-1 text-text-secondary hover:text-text-primary'
             }`}
@@ -368,94 +807,65 @@ function AssetsTab({ holdings }: { holdings: CompositeHolding[] }) {
           </button>
         ))}
       </div>
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-        <div className="card p-5">
-          <h3 className="text-xl font-bold">{selected.name}</h3>
-          <div className="mt-1 text-sm text-text-tertiary">
-            {selected.ticker} · {selected.market} · {assetKindLabels[selected.kind]}
-          </div>
-          <div className="mt-5 grid grid-cols-2 gap-3">
-            <MetricCard label="비중" value={formatPercent(selected.weight).replace('+', '')} />
-            <MetricCard label="수익률" value={formatPercent(selected.returnRate)} tone="positive" />
-            <MetricCard label="기술 점수" value={`${selected.technicalScore}%`} />
-            <MetricCard label="기초 점수" value={`${selected.foundationScore}%`} />
-          </div>
-        </div>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="card p-5">
-            <h3 className="mb-4 font-bold">기술적 분석</h3>
-            <Gauge score={selected.technicalScore} label={selected.technicalSignal} size={170} />
-            <p className="mt-4 text-sm text-text-secondary">캔들, 이동평균, RSI, MACD, 거래량 기준의 요약 신호입니다.</p>
-          </div>
-          <div className="card p-5">
-            <h3 className="mb-4 font-bold">기초 분석</h3>
-            <div className="grid grid-cols-2 gap-3">
-              {selected.fundamentals.map((item) => (
-                <div key={item.label} className="rounded-card bg-surface-1 p-3">
-                  <div className="text-[11px] text-text-tertiary">{item.label}</div>
-                  <div className="mt-1 font-mono text-lg font-bold">{item.value}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
-function EvidenceTab({ rows }: { rows: typeof evidenceRows }) {
-  return (
-    <div className="space-y-6">
-      <SectionHeader eyebrow="데이터 근거" title="업로드 데이터가 어떤 분석 화면으로 바뀌었는지 설명">
-        심사위원이 원본 파일을 준비하지 않아도, 어떤 데이터 블록이 어떤 분석/시각화/인사이트로 연결되는지 확인할 수 있습니다.
-      </SectionHeader>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="card p-5">
-          <h3 className="mb-4 font-bold">감지된 데이터 섹션</h3>
-          <div className="space-y-3">
-            {rows.map((row) => (
-              <div key={row.section} className="rounded-card bg-surface-1 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="font-mono text-sm font-bold text-brand-primary">{row.section}</span>
-                  <span className="rounded-pill bg-surface-3 px-2 py-1 text-[10px] text-text-tertiary">{row.rows} rows</span>
-                </div>
-                <p className="mt-2 text-sm text-text-secondary">{row.description}</p>
-              </div>
-            ))}
+      <div className="card p-5">
+        <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
+          <div>
+            <div className="text-[11px] font-bold uppercase text-brand-primary">선택 자산</div>
+            <h3 className="mt-1 text-2xl font-bold">{selected.name}</h3>
+            <div className="mt-1 text-sm text-text-tertiary">
+              {selected.ticker} · {selected.market} · {assetKindLabels[selected.kind]} · {selected.assetHeader?.dataBasis ?? '실제 과거 일봉 기준'}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:min-w-[420px]">
+            <MetricCard label="비중" value={formatPercent(selected.weight).replace('+', '')} />
+            <MetricCard label="수익률" value={formatPercent(selected.returnRate)} tone={selected.returnRate >= 0 ? 'positive' : 'negative'} />
+            <MetricCard label="변동성" value={formatPercent(selected.volatility).replace('+', '')} />
           </div>
         </div>
-        <div className="card p-5">
-          <h3 className="mb-4 font-bold">적용된 Skills 규칙</h3>
-          {['data.md: 종합 포트폴리오 섹션 감지', 'indicators.md: 성과/위험/기술 지표 계산', 'charts.md: 데이터 타입별 시각화 선택', 'insights.md: 한국어 투자 인사이트 생성', 'layout.md: 대시보드 탭과 카드 배치'].map((rule) => (
-            <div key={rule} className="mb-3 flex items-start gap-3 rounded-card bg-surface-1 p-3 text-sm text-text-secondary">
-              <CheckCircle2 size={16} className="mt-0.5 flex-shrink-0 text-positive" aria-hidden="true" />
-              <span>{rule}</span>
-            </div>
+        <div className="mt-5 flex w-fit gap-2 rounded-pill border border-border bg-surface-1 p-1">
+          {nestedTabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveAssetTab(tab.id)}
+              className={`tab-pill whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
+                activeAssetTab === tab.id ? 'tab-pill-active' : 'tab-pill-inactive'
+              }`}
+            >
+              {tab.label}
+            </button>
           ))}
         </div>
       </div>
-      <div className="card p-5">
-        <div className="mb-4 flex items-center gap-2">
-          <FileText size={18} className="text-brand-primary" aria-hidden="true" />
-          <h3 className="font-bold">원본 데이터 미리보기</h3>
-        </div>
-        <div className="overflow-x-auto rounded-card bg-surface-1 p-4 font-mono text-xs text-text-secondary">
-          section,asset,date,metric,value,currency<br />
-          portfolio_weight,AAPL,,weight,0.20,USD<br />
-          ohlcv,005930,2025-03-31,close,232500,KRW<br />
-          return,BTC,2025-03-31,daily_return,0.018,USD<br />
-          fundamental,GLD,,expense_ratio,0.004,USD
-        </div>
-      </div>
+
+      {activeAssetTab === 'summary' && (
+        <SummaryView summary={selectedSummary} onNavigate={(tab) => setActiveAssetTab(tab)} />
+      )}
+      {activeAssetTab === 'technical' && (
+        <Suspense fallback={<div className="card p-8 text-center text-sm text-text-secondary">기술적 분석 차트를 준비하는 중입니다...</div>}>
+          <TechnicalView
+            candles={selectedTechnical.candles}
+            indicators={selectedTechnical.indicators}
+            symbol={selected.ticker}
+            theme={theme}
+            timeframe={chartTimeframe}
+            onTimeframeChange={setChartTimeframe}
+            availableTimeframes={PORTFOLIO_CHART_TIMEFRAMES}
+            enableRealtimeCandle={false}
+            allowMockCandles={false}
+            emptyMessage="업로드 데이터에 이 자산의 OHLCV 섹션이 없어 캔들 차트를 생성하지 않았습니다."
+          />
+        </Suspense>
+      )}
+      {activeAssetTab === 'fundamental' && <FundamentalView data={selectedFundamental} />}
     </div>
   );
 }
 
-export default function CompositePortfolioDashboard({ result, loadSample = false }: CompositePortfolioDashboardProps) {
+export default function CompositePortfolioDashboard({ result, loadSample = false, theme = 'dark' }: CompositePortfolioDashboardProps) {
   const [activeTab, setActiveTab] = useState<CompositeTab>('summary');
   const [sampleResult, setSampleResult] = useState<UploadAnalysisResult | null>(null);
-  const [sampleError, setSampleError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loadSample || result) return;
@@ -465,7 +875,9 @@ export default function CompositePortfolioDashboard({ result, loadSample = false
         if (!cancelled) setSampleResult(nextResult);
       })
       .catch((caught) => {
-        if (!cancelled) setSampleError(caught instanceof Error ? caught.message : String(caught));
+        if (!cancelled) {
+          console.warn('Composite portfolio sample API unavailable; using built-in judge sample.', caught);
+        }
       });
     return () => {
       cancelled = true;
@@ -483,11 +895,9 @@ export default function CompositePortfolioDashboard({ result, loadSample = false
         <div>
           <h1 className="mb-1 text-3xl font-bold text-text-primary">{data.summary.title}</h1>
           <div className="text-sm font-medium text-text-tertiary">{data.summary.subtitle}</div>
-          <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
-            <span className="rounded-pill bg-positive/10 px-3 py-1 font-bold text-positive">{data.summary.status}</span>
-            <span className="text-text-tertiary">{data.summary.period}</span>
-            {sampleError && <span className="text-warning">샘플 API 대신 내장 샘플을 표시 중</span>}
-          </div>
+          {data.summary.period && (
+            <div className="mt-2 text-xs font-medium text-text-secondary">분석 기간 {data.summary.period}</div>
+          )}
         </div>
         <div className="flex flex-col md:items-end">
           <div className="font-mono text-4xl font-bold tracking-tight">{data.summary.krwValue}</div>
@@ -515,11 +925,10 @@ export default function CompositePortfolioDashboard({ result, loadSample = false
         </div>
       </div>
 
-      {activeTab === 'summary' && <SummaryTab summary={data.summary} />}
+      {activeTab === 'summary' && <SummaryTab summary={data.summary} holdings={data.holdings} />}
       {activeTab === 'performance' && <PerformanceTab monthlies={data.monthlyReturns} />}
       {activeTab === 'allocation' && <AllocationTab holdings={data.holdings} />}
-      {activeTab === 'assets' && <AssetsTab holdings={data.holdings} />}
-      {activeTab === 'evidence' && <EvidenceTab rows={data.evidenceRows} />}
+      {activeTab === 'assets' && <AssetsTab holdings={data.holdings} theme={theme} />}
     </div>
   );
 }

@@ -38,6 +38,8 @@ const { createVisualizationBundle } = sandbox.module.exports;
 const portfolio = createVisualizationBundle('portfolio');
 assert.equal(portfolio.dataType, 'portfolio');
 assert.ok(portfolio.charts.some((chart) => chart.type === 'donut'));
+assert.ok(!portfolio.charts.some((chart) => chart.id === 'portfolio-concentration'));
+assert.ok(!portfolio.charts.some((chart) => /집중도/.test(`${chart.title} ${chart.skillsRule}`)));
 assert.ok(portfolio.charts.every((chart) => chart.reason && chart.skillsRule));
 
 const multiAsset = createVisualizationBundle('multi_asset');
@@ -49,6 +51,9 @@ assert.ok(returns.charts.some((chart) => chart.type === 'drawdown'));
 assert.ok(returns.charts.some((chart) => chart.type === 'monthly_returns'));
 
 assert.match(read('src/components/upload/UploadView.tsx'), /VisualizationDashboard/);
+assert.match(read('src/components/upload/UploadView.tsx'), /result\.type === 'composite_portfolio'[\s\S]*CompositePortfolioDashboard/);
+assert.match(read('src/components/upload/UploadView.tsx'), /result\.type === 'composite_portfolio'[\s\S]*VisualizationDashboard/);
+assert.doesNotMatch(read('src/components/visualization/ChartRenderer.tsx'), /VisualizationReason/);
 assert.match(read('docs/deployment/qa-checklist.md'), /Visualization Intelligence/);
 assert.match(read('docs/deployment/judge-demo-script.md'), /Visualization Wow Moment/);
 assert.match(read('docs/evidence/skills-to-code-matrix.md'), /Visualization Intelligence/);

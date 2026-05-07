@@ -1,62 +1,59 @@
-# main.md — System Orchestrator
+# main.md - System Orchestrator
 
-## 1. System Overview
+## 목적
 
-Glancy is a general-purpose investment dashboard driven by Skills.md rules. It accepts connected market sources or user uploads, converts all inputs into a standard structure, computes indicators, generates rule-based Korean insights, selects visualizations, and renders a responsive dashboard.
+Glancy는 Skills.md 규칙을 기반으로 투자 데이터를 자동 분석하고 대시보드로 구성하는 서비스다. AI 구현자는 이 파일을 진입점으로 삼고, 필요한 세부 규칙을 다른 파일에서 읽어 현재 Glancy 대시보드를 재현한다.
 
-## 2. User Scenario Routing
-
-| User action | Route |
-|-------------|-------|
-| Select Korean stock tab | `data.md -> kr_stocks -> MarketData` |
-| Select US stock tab | `data.md -> us_stocks -> MarketData` |
-| Select ETF tab | `data.md -> etfs -> MarketData` |
-| Select crypto tab | `data.md -> crypto -> MarketData` |
-| Select global index tab | `data.md -> global_indices -> MarketData` |
-| Upload CSV/JSON | `data.md -> user_upload detector -> type adapter` |
-| Edit runtime Skills | `indicators.md/theme.md override -> recompute/restyle` |
-
-## 3. Module Execution Order
+## 실행 순서
 
 ```text
-1. data.md        Input -> standardized MarketData or upload analysis
-2. indicators.md  MarketData -> indicators, signals, gauges
-3. insights.md    indicators/signals -> Korean insights
-4. charts.md      data type + indicators -> ChartSpec[]
-5. layout.md      ChartSpec + insights -> LayoutSpec
-6. theme.md       design tokens -> CSS/chart tokens
+1. data.md        입력 감지와 표준 데이터 생성
+2. indicators.md  기술, 기본, 포트폴리오 지표 계산
+3. insights.md    지표 상태 기반 한국어 인사이트 생성
+4. charts.md      데이터 유형별 차트 묶음 선택
+5. layout.md      대시보드 화면 구성
+6. theme.md       디자인 토큰 적용
+7. dashboard-spec.md + sample-data.md + acceptance.md로 재현성 검수
 ```
 
-## 4. Error Handling Policy
+## 기본 화면 정책
 
-| Situation | Handling |
-|-----------|----------|
-| External API fails | Use cached response, then sample fallback |
-| Insufficient candles | Display partial indicators and explain limitation |
-| Upload type unknown | Show detected columns and manual guidance |
-| Fundamental data unavailable | Show `-` with source-specific note |
-| Runtime Skills invalid | Keep last valid settings and show warning |
+- 첫 화면은 종합 포트폴리오 대시보드다.
+- 첫 화면 제목은 `종합 포트폴리오 분석`이다.
+- 샘플 보유 자산은 삼성전자 `005930`, `AAPL`, `MSFT`, `SPY`, `BTC`, `GLD`다.
+- 상단 내비게이션은 `대시보드`, `자산검색`, `CSV 업로드`다.
+- 종합 포트폴리오 대시보드는 `요약`, `성과/리스크`, `자산 배분`, `개별 자산 분석` 탭을 가진다.
 
-## 5. Runtime Override Policy
+## 라우팅
 
-Runtime overrides are allowed only for safe, explainable parameters:
+| 사용자 행동 | 처리 |
+| --- | --- |
+| 대시보드 진입 | `composite_portfolio` 샘플 또는 업로드 결과 렌더링 |
+| 한국 주식 검색 | `kr_stock` 데이터 수집 후 자산검색 대시보드 |
+| 미국 주식, ETF 검색 | `us_stock` 또는 `etf` 데이터 수집 후 자산검색 대시보드 |
+| 암호화폐 검색 | `crypto` 데이터 수집 후 자산검색 대시보드 |
+| CSV 또는 JSON 업로드 | `data.md` 감지 결과에 맞는 자동 대시보드 |
 
-| Module | Runtime fields |
-|--------|----------------|
-| `indicators.md` | RSI, MACD, Bollinger Band parameters |
-| `theme.md` | brand, positive, negative, warning, info colors |
-| `charts.md` | chart preference presets where compatible |
+## 데이터 상태 원칙
 
-Invalid overrides must not break the dashboard. They should be ignored or shown as warnings.
+- `live`: 실시간 또는 최신 외부 응답
+- `cached`: 최근 캐시 응답
+- `sample`: 심사용 샘플 또는 fallback
+- `unavailable`: 계산 불가
 
-## 6. Vibe Coding Guide
+데이터 상태는 분석 신뢰도에 영향을 준다. `sample`이나 `unavailable`일 때는 인사이트 문구가 이를 명시해야 한다.
 
-Recommended order for AI implementation:
+## 구현 우선순위
 
-1. Load `README.md` and `main.md`.
-2. Implement `data.md` as backend models, sources, and upload detector.
-3. Implement `indicators.md` as computation engine.
-4. Implement `insights.md` as rule-based narrative engine.
-5. Implement `charts.md` as ChartSpec and visualization components.
-6. Implement `layout.md` and `theme.md` as frontend dashboard.
-7. Document evidence in `docs/evidence/`.
+1. 종합 포트폴리오 대시보드가 가장 완성도 높아야 한다.
+2. 자산검색의 요약, 기술적 분석, 기본적 분석은 같은 지표 규칙을 공유해야 한다.
+3. 업로드 결과는 픽셀 단위로 동일할 필요는 없지만 같은 분석 언어와 화면 밀도를 가져야 한다.
+4. fallback은 화면을 유지하기 위한 장치이지 실제 분석을 가장하는 장치가 아니다.
+
+## 재현 모드
+
+사용자가 “현재 Glancy와 똑같이 구현”을 요구하면 다음 세 파일은 필수다.
+
+- `dashboard-spec.md`: 화면 순서, 카드명, 탭명, 금지 UI
+- `sample-data.md`: 포트폴리오 값, 보유 자산, 시계열, 월별 수익률
+- `acceptance.md`: 구현 결과 검수 기준

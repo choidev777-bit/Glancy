@@ -153,6 +153,93 @@ export const fundamentalDetails = [
   },
 ];
 
+export const fundamentalAnnualHistory: FundamentalHistoryMetric[] = [
+  {
+    label: 'PER',
+    unit: 'x',
+    direction: 'lower-better',
+    history: [
+      { quarter: '2021', value: 18.2 },
+      { quarter: '2022', value: 16.7 },
+      { quarter: '2023', value: 15.4 },
+      { quarter: '2024', value: 14.6 },
+      { quarter: '2025', value: 13.9 },
+    ],
+  },
+  {
+    label: 'PBR',
+    unit: 'x',
+    direction: 'lower-better',
+    history: [
+      { quarter: '2021', value: 1.55 },
+      { quarter: '2022', value: 1.46 },
+      { quarter: '2023', value: 1.38 },
+      { quarter: '2024', value: 1.32 },
+      { quarter: '2025', value: 1.28 },
+    ],
+  },
+  {
+    label: 'ROE',
+    unit: '%',
+    direction: 'higher-better',
+    history: [
+      { quarter: '2021', value: 10.2 },
+      { quarter: '2022', value: 10.9 },
+      { quarter: '2023', value: 11.7 },
+      { quarter: '2024', value: 12.3 },
+      { quarter: '2025', value: 12.8 },
+    ],
+  },
+  {
+    label: '매출 성장률',
+    unit: '%',
+    direction: 'higher-better',
+    history: [
+      { quarter: '2021', value: 2.8 },
+      { quarter: '2022', value: 3.6 },
+      { quarter: '2023', value: 4.2 },
+      { quarter: '2024', value: 5.1 },
+      { quarter: '2025', value: 5.8 },
+    ],
+  },
+  {
+    label: '영업이익률',
+    unit: '%',
+    direction: 'higher-better',
+    history: [
+      { quarter: '2021', value: 11.5 },
+      { quarter: '2022', value: 12.3 },
+      { quarter: '2023', value: 13.1 },
+      { quarter: '2024', value: 14.2 },
+      { quarter: '2025', value: 14.9 },
+    ],
+  },
+  {
+    label: '부채비율',
+    unit: '%',
+    direction: 'lower-better',
+    history: [
+      { quarter: '2021', value: 42.0 },
+      { quarter: '2022', value: 39.8 },
+      { quarter: '2023', value: 37.1 },
+      { quarter: '2024', value: 35.6 },
+      { quarter: '2025', value: 34.7 },
+    ],
+  },
+  {
+    label: '배당수익률',
+    unit: '%',
+    direction: 'higher-better',
+    history: [
+      { quarter: '2021', value: 1.7 },
+      { quarter: '2022', value: 1.8 },
+      { quarter: '2023', value: 2.0 },
+      { quarter: '2024', value: 2.2 },
+      { quarter: '2025', value: 2.3 },
+    ],
+  },
+];
+
 export const fundamentalQuarterHistory: FundamentalHistoryMetric[] = [
   {
     label: 'PER',

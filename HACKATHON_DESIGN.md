@@ -1,3 +1,106 @@
+# Codex Current Snapshot
+
+Updated: 2026-05-04
+
+This is the first section future Codex sessions should read. Older Korean sections below are historical planning notes and may render as mojibake in some terminals. Treat this snapshot as the current working truth unless local code says otherwise.
+
+## Current Goal
+
+- Project: Glancy.
+- Proposal team name: weekend.
+- Hackathon thesis: Skills.md is not only documentation; it is an operational spec that guides AI implementation, dashboard behavior, data provider choices, fallback policy, and user setup instructions.
+- Current phase: implementation and demo polish, not early draft planning.
+- Keep judge demo reliable even when optional broker APIs fail.
+
+## Runbook
+
+- Backend recommended start command:
+  - `cd C:\Users\thisi\Documents\Glancy\backend`
+  - `.\start-backend.ps1`
+- Direct backend command if needed:
+  - `.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000`
+- Frontend dev command:
+  - `cd C:\Users\thisi\Documents\Glancy`
+  - `npm run dev`
+- Backend env file:
+  - `backend/.env`
+- Do not put Kiwoom App Secret or any brokerage secret into frontend `.env.local` or chat.
+
+## Current Data Provider Matrix
+
+- Korean stocks:
+  - Search universe: KRX KIND KOSPI/KOSDAQ list in `backend/app/sources/search_source.py`.
+  - Quote/current header: Kiwoom REST when configured and working.
+  - OHLCV/chart: Kiwoom REST first when `KIWOOM_PROVIDER_MODE=auto` or `kiwoom_rest`; pykrx fallback when Kiwoom is unavailable and mode allows fallback.
+  - Badge intent: `실시간 데이터` when Kiwoom succeeds; otherwise delayed/fallback status.
+- Crypto:
+  - Binance REST/OHLCV plus Binance WebSocket for live candle/header updates.
+  - Badge intent: `실시간 데이터`.
+- US stocks:
+  - Yahoo/yfinance based data.
+  - Badge intent: `지연 데이터`.
+- ETF:
+  - Yahoo/yfinance based data unless a future real-time provider is added.
+  - Badge intent: `지연 데이터` for current implementation.
+- Global indices:
+  - Yahoo/yfinance based data.
+  - Korean index symbols such as `^KS11`/`^KQ11` should be displayed as index points, not USD/KRW.
+  - Badge intent: `지연 데이터`.
+- CSV upload:
+  - User-uploaded data is analyzed locally through the visualization pipeline and should not imply live market freshness.
+
+## Kiwoom Current State
+
+- Kiwoom REST provider exists in `backend/app/sources/kiwoom_source.py`.
+- Kiwoom requests use a dedicated `requests.Session()` with `trust_env = False` to avoid broken local proxy env such as `HTTP_PROXY=http://127.0.0.1:9`.
+- `backend/start-backend.ps1` clears proxy env before starting Uvicorn.
+- Kiwoom token is cached in process memory; restarting backend creates a fresh token flow.
+- If Kiwoom returns invalid token errors, the provider should clear token and retry once, then fallback if still failing.
+- User-side setup still matters: REST API access, mock/real App Key, App Secret, account number, and registered outbound IP.
+
+## Current Chart UX
+
+- Main chart uses Lightweight Charts.
+- OHLC line is always shown at the top of the chart.
+- The legend expand/collapse button controls the main price-pane legend rows for MA and Bollinger Bands.
+- Bottom pane indicators should still show their names/legend rows even when the top legend is collapsed.
+- Chart indicators now include:
+  - Main/price-pane indicators: independent MA instances, Bollinger Bands, Volume.
+  - Bottom pane indicators: RSI, MACD, Stochastic, Williams %R, CCI, ROC, OBV.
+- MA is no longer one bundled `MA 5/20/60` setting. Each MA is an independent instance with one period, one color, one visibility state, and its own settings modal.
+- `차트 지표 -> MA 추가` adds another independent MA.
+- Each visible chart indicator legend row has a settings gear and should have a trash/delete action where applicable.
+- Indicator settings modal is TradingView-inspired:
+  - opens near chart center,
+  - can be dragged inside the chart area,
+  - has `입력 / 모습 / 보임` tabs,
+  - supports confirm/cancel behavior.
+
+## Current UI/Freshness Labels
+
+- Data badge wording target:
+  - Korean stocks: `실시간 데이터` if Kiwoom succeeds, otherwise `지연 데이터` or fallback wording.
+  - US stocks: `지연 데이터`.
+  - ETF: `지연 데이터` unless a future live provider exists.
+  - Crypto: `실시간 데이터`.
+  - Global indices: `지연 데이터`.
+- Avoid `캐시 데이터` as a primary user-facing label when the actual meaning is delayed provider data.
+
+## Current Known Risks
+
+- Kiwoom may fail after reboot if env/proxy/IP/token setup is wrong; use `backend/start-backend.ps1` first.
+- Kiwoom mock API availability may differ by market hours, holidays, account/API permission, or portal status.
+- Yahoo/yfinance data is delayed and not suitable for claims of real-time US/ETF/index prices.
+- Deployment with Kiwoom may need a backend with stable outbound IP.
+- Do not overclaim that every provider is real-time.
+
+## Recent Verification
+
+- Latest known frontend verification after MA independent-indicator work: `npm run build` passed.
+- Current dirty worktree may include unrelated prior changes in backend Kiwoom files, data badge, and chart files. Do not revert unrelated changes.
+
+---
+
 # 해커톤 설계 문서: 투자 데이터 Skills 기반 대시보드
 
 생성일: 2026-04-28
@@ -898,9 +1001,9 @@ This note audits the `Codex Working Memory` section above.
 
 # Codex Latest Working Context
 
-Updated: 2026-04-30
+Updated: 2026-05-04
 
-This section is the current machine-readable memory for Codex. Older Korean sections in this file may display mojibake, so prefer this section when restoring context.
+This section is retained for continuity, but future sessions should read `Codex Current Snapshot` at the top of this file first. Older Korean sections may display mojibake in some terminals.
 
 ## Current Product Direction
 
@@ -922,23 +1025,24 @@ This section is the current machine-readable memory for Codex. Older Korean sect
 
 ## Korean Price Freshness
 
-- Korean stock prices are not true real-time ticks right now.
+- Korean stocks now have an optional Kiwoom REST provider path.
 - Current Korean market data route is `/kr-stocks/{ticker}` in `backend/app/routers/kr_stocks.py`.
-- Current Korean OHLCV source is `pykrx.stock.get_market_ohlcv(start, end, ticker)` in `backend/app/sources/pykrx_source.py`.
-- The frontend fetches market data once when category/symbol changes in `src/hooks/useIndicatorsData.ts`; there is no polling for Korean stocks.
-- Backend uses cache TTL from `settings.cache_ttl_seconds`, currently default 300 seconds.
-- True streaming/near-real-time behavior currently exists only for crypto through Binance WebSocket in `src/hooks/useBinanceWebSocket.ts`.
+- Provider mode is controlled by `KIWOOM_PROVIDER_MODE`; current desired local setting is `auto`.
+- In `auto`, Kiwoom is attempted first when env is configured; pykrx remains fallback for judge-safe operation.
+- Korean quote/current header can come from `/kr-stocks/{ticker}/quote`, backed by `backend/app/sources/kiwoom_source.py`.
+- Do not claim Korean stock data is real-time unless the returned metadata/source confirms Kiwoom success.
+- Crypto still has the strongest live behavior through Binance WebSocket in `src/hooks/useBinanceWebSocket.ts`.
 
 ## Kiwoom REST API Decision
 
-- Kiwoom REST API can be used for Korean stock quote/current price and real-time market data.
-- Kiwoom should be treated as an optional advanced provider, not a mandatory dependency for the main judge demo.
+- Kiwoom REST API is implemented as an optional advanced provider for Korean stock quote/current price and OHLCV.
+- Kiwoom should remain optional for the submitted Skills.md story, but the user's local/dev dashboard should use it when configured.
 - Recommended provider split:
-- Korean real-time/current quote: optional Kiwoom REST/WebSocket provider.
-- Korean historical OHLCV/search fallback: KRX KIND + pykrx.
+- Korean search: KRX KIND full KOSPI/KOSDAQ universe.
+- Korean quote/OHLCV: Kiwoom REST first in local `auto` mode, pykrx fallback.
 - Korean fundamentals/financial statements: DART, not Kiwoom as the primary financial statement source.
-- US stocks/ETFs/global indices: Yahoo Finance style lookup/data.
-- Crypto: Binance.
+- US stocks/ETFs/global indices: Yahoo Finance style lookup/data and delayed-data labeling.
+- Crypto: Binance REST/WebSocket and live-data labeling.
 
 ## Human Steps For Kiwoom
 
@@ -975,5 +1079,8 @@ This is a good fit for the hackathon if framed correctly:
 - `backend/tests/test_search.py` includes tests for mixed assets, fallback behavior, and KRX KIND universe examples.
 - Backend server was restarted after the search update.
 - Frontend dev server previously ran on `http://127.0.0.1:5175/`; backend CORS now includes localhost/127.0.0.1 ports 5173, 5174, and 5175.
+- Kiwoom stability work added `backend/start-backend.ps1` and Kiwoom session `trust_env = False` to avoid local proxy env issues.
+- Chart work added TradingView-like settings modal, draggable chart-local modal behavior, independent MA instances, `MA 추가`, and per-indicator gear/delete actions.
+- Latest known frontend build after independent MA work: `npm run build` passed.
 
 ---

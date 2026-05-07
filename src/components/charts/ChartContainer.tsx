@@ -5,7 +5,6 @@ import { useBinanceWebSocket } from '../../hooks/useBinanceWebSocket';
 import { CRYPTO_CATEGORY } from '../../lib/market-selection';
 import { binanceIntervalForTimeframe, DEFAULT_CHART_TIMEFRAME, type ChartTimeframe } from '../../lib/timeframes';
 import CandleChart, { MainIndicatorId, PaneIndicatorId } from './CandleChart';
-import VisualizationReason from './VisualizationReason';
 
 interface ChartContainerProps {
   candles: Candle[];
@@ -43,7 +42,7 @@ function parseMaPeriods(value?: string): number[] | undefined {
 }
 
 export default function ChartContainer({
-  candles,
+  candles: chartCandles,
   category,
   symbol,
   theme = 'dark',
@@ -77,7 +76,7 @@ export default function ChartContainer({
     );
   };
 
-  if (candles.length === 0) {
+  if (chartCandles.length === 0) {
     return <div className="card p-8 text-center text-text-secondary">차트 데이터를 불러오는 중입니다...</div>;
   }
 
@@ -133,7 +132,7 @@ export default function ChartContainer({
           </div>
         )}
         <CandleChart
-          candles={candles}
+          candles={chartCandles}
           latestCandle={liveCandle}
           enabledMAs={maPeriods}
           mainIndicators={activeMainIndicators}
@@ -145,10 +144,6 @@ export default function ChartContainer({
           onToggleMainIndicator={toggleMainIndicator}
           onTogglePaneIndicator={togglePaneIndicator}
           onMaCountChange={setMaCount}
-        />
-        <VisualizationReason
-          reason="OHLCV 데이터는 가격 흐름과 지표를 같은 시간축에서 비교해야 하므로, 메인 차트 지표와 하단 pane 지표를 함께 보여줍니다."
-          rule="charts.md: OHLCV -> candle"
         />
       </div>
     </div>

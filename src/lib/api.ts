@@ -132,12 +132,20 @@ export interface UploadSampleMeta {
 const viteEnv = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
 const BASE_URL = viteEnv?.VITE_API_BASE_URL || 'http://localhost:8000';
 
-async function get<T>(path: string): Promise<T> {
-  const response = await fetch(`${BASE_URL}${path}`);
-  if (!response.ok) {
-    throw new Error(`API ${path} failed with ${response.status}`);
+async function get<T>(path: string, options: { timeoutMs?: number } = {}): Promise<T> {
+  const controller = options.timeoutMs ? new AbortController() : undefined;
+  const timeout = options.timeoutMs
+    ? window.setTimeout(() => controller?.abort(), options.timeoutMs)
+    : undefined;
+  try {
+    const response = await fetch(`${BASE_URL}${path}`, { signal: controller?.signal });
+    if (!response.ok) {
+      throw new Error(`API ${path} failed with ${response.status}`);
+    }
+    return response.json() as Promise<T>;
+  } finally {
+    if (timeout) window.clearTimeout(timeout);
   }
-  return response.json() as Promise<T>;
 }
 
 const enc = encodeURIComponent;
@@ -190,5 +198,5 @@ export const api = {
     us: (symbol: string) => get(`/fundamental/us/${enc(symbol)}`),
   },
   uploadSamples: () => get<UploadSampleMeta[]>('/upload/samples'),
-  uploadSampleResult: (sampleId: string) => get<UploadAnalysisResult>(`/upload/samples/${enc(sampleId)}`),
+  uploadSampleResult: (sampleId: string) => get<UploadAnalysisResult>(`/upload/samples/${enc(sampleId)}`, { timeoutMs: 2500 }),
 };

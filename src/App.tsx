@@ -9,6 +9,7 @@ import FundamentalView from './components/analysis/FundamentalView';
 import UploadView from './components/upload/UploadView';
 import { useBinanceWebSocket } from './hooks/useBinanceWebSocket';
 import { useIndicators, useKrStockQuote, useMarketData } from './hooks/useIndicatorsData';
+import { buildAssetSummary } from './lib/asset-analysis';
 import type { AssetSearchResult, MarketData, RuntimeIndicatorParams, StockQuote } from './lib/api';
 import {
   assetFromSearchResult,
@@ -34,7 +35,7 @@ function assetWithMarketData(asset: DashboardAsset, data?: MarketData | null): D
   const changePercent = previous.close ? (change / previous.close) * 100 : 0;
   return {
     ...asset,
-    name: data.name || asset.name,
+    name: (data.name && data.name !== data.symbol) ? data.name : asset.name,
     ticker: data.symbol || asset.ticker,
     price: latest.close,
     change,
@@ -50,7 +51,7 @@ function assetWithQuote(asset: DashboardAsset, quote?: StockQuote | null): Dashb
   if (typeof quote?.price !== 'number') return asset;
   return {
     ...asset,
-    name: quote.name || asset.name,
+    name: (quote.name && quote.name !== quote.symbol) ? quote.name : asset.name,
     ticker: quote.symbol || asset.ticker,
     price: quote.price,
     change: quote.change ?? asset.change,
@@ -108,9 +109,16 @@ function App() {
         ? quote.data.meta
         : marketData.data?.meta;
   const isHeaderLoading = marketRequest.kind === 'kr' && quote.loading && !quote.data && !quote.error;
-  const [runtimeParams, setRuntimeParams] = useState<RuntimeIndicatorParams>({});
+  const runtimeParams: RuntimeIndicatorParams = {};
   const indicators = useIndicators(marketRequest, runtimeParams, chartTimeframe);
   const isFundamentalDisabled = !supportsFundamental(activeCategory);
+  const assetSummary = buildAssetSummary({
+    asset: currentAsset,
+    indicators: indicators.data,
+    quote: quote.data,
+    technicalError: marketData.error ?? indicators.error,
+    fundamentalDisabled: isFundamentalDisabled,
+  });
 
   const handleCategoryChange = (category: string) => {
     setSelectedAsset(null);
@@ -145,7 +153,7 @@ function App() {
           marketCategories={MARKET_CATEGORIES}
         />
 
-        {activeTopTab === 'dashboard' && <CompositePortfolioDashboard loadSample />}
+        {activeTopTab === 'dashboard' && <CompositePortfolioDashboard loadSample theme={theme} />}
 
         {activeTopTab === 'csv-upload' && (
           <UploadView key="csv-upload" defaultMode="upload" />
@@ -163,7 +171,11 @@ function App() {
 
             <div className="min-h-[600px]">
               {activeAnalysisTab === 'summary' && (
-                <SummaryView onNavigate={setActiveAnalysisTab} fundamentalDisabled={isFundamentalDisabled} />
+                <SummaryView
+                  onNavigate={setActiveAnalysisTab}
+                  fundamentalDisabled={isFundamentalDisabled}
+                  summary={assetSummary}
+                />
               )}
               {activeAnalysisTab === 'technical' && (
                 <Suspense fallback={<div className="card mx-6 p-8 text-center text-text-secondary">Loading chart tools...</div>}>
@@ -176,7 +188,6 @@ function App() {
                     loading={marketData.loading || indicators.loading}
                     error={marketData.error ?? indicators.error}
                     runtimeParams={runtimeParams}
-                    onRuntimeChange={(runtime) => setRuntimeParams(runtime.indicators)}
                     timeframe={chartTimeframe}
                     onTimeframeChange={setChartTimeframe}
                     enableRealtimeCandle={canOverlayRealtimeCandle}
@@ -191,24 +202,6 @@ function App() {
         )}
       </main>
 
-      <footer className="mt-12 border-t border-border bg-surface-1 px-6 py-10">
-        <div className="mx-auto flex max-w-[1440px] flex-col items-center justify-between gap-6 md:flex-row">
-          <div className="text-xs font-medium text-text-tertiary">
-            Glancy 2026. Market data can fall back to reliable demo samples for judge-safe demos.
-          </div>
-          <div className="flex gap-6">
-            <a href="#" className="text-xs text-text-tertiary transition-colors hover:text-text-primary">
-              Skills.md
-            </a>
-            <a href="#" className="text-xs text-text-tertiary transition-colors hover:text-text-primary">
-              Data Sources
-            </a>
-            <a href="#" className="text-xs text-text-tertiary transition-colors hover:text-text-primary">
-              Demo Reliability
-            </a>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

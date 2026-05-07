@@ -61,7 +61,7 @@ export function createVisualizationBundle(dataType: VisualizationDataType): Visu
     case 'portfolio':
       return {
         dataType,
-        summary: '포트폴리오 데이터는 자산 배분과 집중도 리스크를 중심으로 시각화합니다.',
+        summary: '포트폴리오 데이터는 자산 배분과 보유 비중을 중심으로 시각화합니다.',
         charts: [
           chart({
             id: 'portfolio-donut',
@@ -70,18 +70,8 @@ export function createVisualizationBundle(dataType: VisualizationDataType): Visu
             priority: 'primary',
             dataKey: 'analysis.holdings',
             encoding: { color: 'ticker', size: 'weight' },
-            reason: '포트폴리오 비중은 전체 대비 구성 비율이므로 도넛 차트가 집중도를 직관적으로 보여줍니다.',
+            reason: '포트폴리오 비중은 전체 대비 구성 비율이므로 도넛 차트가 자산 배분을 직관적으로 보여줍니다.',
             skillsRule: 'charts.md: portfolio -> 도넛/트리맵',
-          }),
-          chart({
-            id: 'portfolio-concentration',
-            type: 'bar',
-            title: '집중도 리스크',
-            priority: 'secondary',
-            dataKey: 'analysis.concentration',
-            encoding: { x: 'bucket', y: 'weight' },
-            reason: '상위 1/3/5개 종목 비중으로 분산 여부와 쏠림 위험을 빠르게 확인합니다.',
-            skillsRule: 'charts.md: portfolio -> 집중도 막대',
           }),
         ],
       };
