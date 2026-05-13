@@ -25,6 +25,10 @@ class Settings(BaseSettings):
         return [origin.strip() for origin in self.allowed_origins.split(",") if origin.strip()]
 
     @property
+    def cors_origin_regex(self) -> str:
+        return r"https://.*\.vercel\.app"
+
+    @property
     def effective_kiwoom_base_url(self) -> str:
         if self.kiwoom_api_base_url:
             return self.kiwoom_api_base_url.rstrip("/")
