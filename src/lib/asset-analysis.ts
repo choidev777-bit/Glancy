@@ -1,10 +1,11 @@
-import type { IndicatorsResponse, StockQuote } from './api';
+import type { IndicatorsResponse, InsightProfile, StockQuote } from './api';
 import type { DashboardAsset } from './market-selection';
 
 export interface AssetSummaryViewData {
   overall: string;
   score: number;
   insights: string;
+  insightProfile?: InsightProfile;
   tags?: string[];
   technical: {
     score: number;
@@ -112,6 +113,41 @@ function buildInsight(asset: DashboardAsset, technicalScore: number, maScore: nu
   return `${asset.name}은 기술 지표가 중립권에 있습니다. 방향성은 아직 확정적이지 않아 추세 돌파와 거래량 변화를 함께 확인해야 합니다.`;
 }
 
+function fallbackInsightProfile(asset: DashboardAsset, insight: string, technicalScore: number, maScore: number, fundamentalScore: number): InsightProfile {
+  const stance = technicalScore >= 70 && maScore >= 65 ? 'bullish' : technicalScore <= 35 || maScore <= 35 ? 'bearish' : 'neutral';
+  return {
+    headline: insight,
+    stance,
+    confidence: Math.max(0, Math.min(100, Math.round((technicalScore + Math.max(maScore, 0)) / 2))),
+    horizon: 'short',
+    sections: [
+      {
+        id: 'technical',
+        title: '기술적 근거',
+        tone: stance === 'bullish' ? 'positive' : stance === 'bearish' ? 'negative' : 'neutral',
+        summary: '기술 점수와 이동평균 점수를 함께 보며 단기 가격 흐름의 방향성을 판단합니다.',
+        evidence: [
+          { label: '기술 점수', value: `${technicalScore}%`, interpretation: technicalScore >= 70 ? '모멘텀 우위' : technicalScore <= 35 ? '약세 신호 우위' : '중립권' },
+          { label: '이동평균 점수', value: `${maScore}%`, interpretation: maScore >= 65 ? '추세 우호적' : maScore <= 35 ? '추세 약화' : '방향성 확인 필요' },
+        ],
+      },
+      {
+        id: 'fundamental',
+        title: '기본 데이터',
+        tone: fundamentalScore > 0 ? 'neutral' : 'warning',
+        summary: '현재 요약 화면은 가격 위치와 기초 데이터 가용성을 함께 표시합니다.',
+        evidence: [
+          { label: '기초 점수', value: `${fundamentalScore}%`, interpretation: fundamentalScore > 0 ? '기초 데이터가 요약에 반영됨' : '기초 데이터 부족' },
+          { label: '자산', value: asset.ticker, interpretation: asset.name },
+        ],
+      },
+    ],
+    conflicts: [],
+    nextChecks: ['기술적 분석 탭에서 지표별 상충 여부를 확인합니다.', '기본적 분석 탭에서 밸류에이션과 수익성 지표를 확인합니다.'],
+    dataQuality: [],
+  };
+}
+
 export function buildTechnicalFallbackAnalysis(indicators?: IndicatorsResponse | null, error?: string | null): FallbackTechnicalAnalysis {
   const technicalGauge = scoreFromIndicators(indicators);
   const movingAverageGauge = scoreFromMovingAverages(indicators);
@@ -145,11 +181,13 @@ export function buildAssetSummary(options: {
   const overallScore = hasIndicators ? average([technicalScore, maScore || technicalScore]) : 0;
   const overall = signalFromScore(overallScore);
   const insight = buildInsight(asset, technicalScore, maScore, hasIndicators, Boolean(technicalError));
+  const insightProfile = indicators?.insights?.insight_profile ?? fallbackInsightProfile(asset, insight, technicalScore, maScore, fundamentalScore);
 
   return {
     overall,
     score: overallScore,
     insights: insight,
+    insightProfile,
     tags: [
       hasIndicators ? `기술 ${signalFromScore(technicalScore)}` : '지표 데이터 부족',
       fundamentalDisabled ? '기본 분석 미지원' : fundamentalScore > 0 ? '기초 데이터 반영' : '기초 데이터 부족',

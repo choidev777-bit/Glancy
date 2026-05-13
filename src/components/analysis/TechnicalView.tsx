@@ -7,6 +7,7 @@ import type { Candle, IndicatorsResponse, RuntimeIndicatorParams } from '../../l
 import { buildTechnicalFallbackAnalysis } from '../../lib/asset-analysis';
 import { aggregateCandlesForTimeframe } from '../../lib/candle-timeframe';
 import { CHART_TIMEFRAMES, DEFAULT_CHART_TIMEFRAME, type ChartTimeframe } from '../../lib/timeframes';
+import InsightProfilePanel from './InsightProfilePanel';
 
 interface TechnicalViewProps {
   candles?: Candle[];
@@ -54,6 +55,7 @@ const TechnicalView: React.FC<TechnicalViewProps> = ({
   const overallSignal = indicators?.gauges?.overall?.signal ?? '중립';
   const maSignal = indicators?.gauges?.moving_average?.signal ?? 'MA';
   const insight = indicators?.insights?.summary ?? fallbackAnalysis.insight;
+  const insightProfile = indicators?.insights?.insight_profile;
   const indicatorRows = indicators?.indicators ?? [];
   const movingAverageRows = indicators?.moving_averages ?? [];
 
@@ -86,13 +88,15 @@ const TechnicalView: React.FC<TechnicalViewProps> = ({
         </div>
       </div>
 
-      <div className={`card border-info/20 p-4 ${error ? 'bg-warning/5' : 'bg-info/5'}`}>
-        <p className="text-center text-sm text-text-secondary">
-          {loading && '시장 데이터를 불러오는 중입니다...'}
-          {!loading && error && `데이터 공급이 불안정합니다: ${error}. ${insight}`}
-          {!loading && !error && insight}
-        </p>
-      </div>
+      {loading ? (
+        <div className="card border-info/20 bg-info/5 p-4 text-center text-sm text-text-secondary">시장 데이터를 불러오는 중입니다...</div>
+      ) : (
+        <InsightProfilePanel
+          profile={error ? null : insightProfile}
+          fallback={error ? `데이터 공급이 불안정합니다: ${error}. ${insight}` : insight}
+          title="기술적 분석 인사이트"
+        />
+      )}
 
       {timeframeCandles.length > 0 ? (
         <ChartContainer

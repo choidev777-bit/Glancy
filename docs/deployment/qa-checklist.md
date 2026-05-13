@@ -17,6 +17,14 @@
 - [ ] Global Indices default asset loads.
 - [ ] Failed external API shows sample fallback messaging instead of a blank screen.
 
+## Insight Depth
+
+- [ ] Summary screen shows a structured insight panel with stance, confidence, section evidence, conflicts, and next checks.
+- [ ] Technical Analysis screen shows trend, momentum, volatility, volume, and level evidence instead of only a one-line comment.
+- [ ] Fundamental Analysis screen shows valuation, profitability, growth, financial-health, and shareholder-return evidence.
+- [ ] Composite Portfolio Dashboard shows portfolio-level insight and the same deeper per-asset technical/fundamental insight shape.
+- [ ] Missing provider fields produce data-quality notes rather than silent overconfidence.
+
 ## Skills Proof
 
 - [ ] Skills Runtime Demo entry is visible or documented.

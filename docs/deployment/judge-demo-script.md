@@ -6,7 +6,7 @@ Use this as the 3-minute happy path for the submitted production URL.
 
 - Open the production Vercel URL in an incognito browser.
 - Confirm the KR Stocks default asset loads.
-- Point out the current price, overall gauge, and natural-language insight.
+- Point out the current price, overall gauge, and the structured insight panel: stance, confidence, evidence, conflicts, and next checks.
 
 ## 0:30-1:00 Multi-Asset Coverage
 
@@ -18,15 +18,21 @@ Use this as the 3-minute happy path for the submitted production URL.
 
 - Enter the `기술적 분석` tab.
 - Show the candle chart, moving averages, RSI, MACD, gauges, and indicator tables.
-- Explain that `skills/charts.md` defines why each visualization is selected.
+- Explain that the technical insight separates trend, momentum, volatility, volume, and support/resistance evidence, then calls out signal conflicts and follow-up checks.
 
-## 1:40-2:20 Skills Runtime Demo
+## 1:40-2:05 Fundamental Analysis Depth
+
+- Enter the `기본적 분석` tab.
+- Show that valuation, profitability, growth, financial health, and shareholder return are grouped into evidence-backed insight sections.
+- Point out any data-quality warning if an external provider did not return enough fields.
+
+## 2:05-2:35 Skills Runtime Demo
 
 - Open the Skills Runtime Demo surface when available.
 - Change a theme token or indicator threshold.
 - Show that the UI/chart interpretation changes without rewriting app code.
 
-## 2:20-3:00 CSV Upload
+## 2:35-3:00 CSV Upload
 
 - Switch to `CSV Upload`.
 - Drag or choose a sample OHLCV, portfolio, returns, or price-series CSV.
@@ -36,6 +42,7 @@ Use this as the 3-minute happy path for the submitted production URL.
 ## Visualization Wow Moment
 
 - Portfolio CSV becomes an allocation donut plus concentration view.
+- Composite Portfolio Dashboard shows portfolio-level insight plus the same deeper asset-level technical/fundamental summaries.
 - Multi-asset CSV becomes normalized comparison plus correlation heatmap.
 - Returns CSV becomes risk metrics, drawdown, and monthly returns heatmap.
 - Each generated panel includes a visible `charts.md driven` explanation so judges can see the Skills.md-to-UI chain.

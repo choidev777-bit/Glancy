@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 
 from app.fundamental.format import fmt_dollar, fmt_multiple, fmt_percent
+from app.fundamental.insights import build_fundamental_profile
 from app.fundamental.models import FundamentalItem, FundamentalReport, FundamentalSection
 from app.sources.yfinance_source import get_yf_fundamentals
 
@@ -71,10 +72,13 @@ def build_us_report(symbol: str, name: str) -> FundamentalReport:
         ],
     )
 
+    sections = [valuation, profitability, growth, health, shareholder]
+
     return FundamentalReport(
         symbol=symbol,
         market="us",
         name=name,
-        sections=[valuation, profitability, growth, health, shareholder],
+        sections=sections,
+        insight_profile=build_fundamental_profile(symbol, name, "us", sections),
         generated_at=datetime.now(UTC).isoformat(),
     )
