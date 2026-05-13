@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 
 from app.fundamental.format import fmt_multiple, fmt_percent, fmt_won
+from app.fundamental.insights import build_fundamental_profile
 from app.fundamental.models import FundamentalItem, FundamentalReport, FundamentalSection
 from app.sources.pykrx_source import get_kr_stock_fundamental
 
@@ -68,10 +69,13 @@ def build_kr_report(ticker: str, name: str, dart_data: dict | None = None) -> Fu
         ],
     )
 
+    sections = [valuation, profitability, growth, health, shareholder]
+
     return FundamentalReport(
         symbol=ticker,
         market="kr",
         name=name,
-        sections=[valuation, profitability, growth, health, shareholder],
+        sections=sections,
+        insight_profile=build_fundamental_profile(ticker, name, "kr", sections),
         generated_at=datetime.now(UTC).isoformat(),
     )

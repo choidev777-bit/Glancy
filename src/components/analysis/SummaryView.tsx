@@ -2,6 +2,7 @@ import React from 'react';
 import { ChevronRight } from 'lucide-react';
 import Gauge from '../common/Gauge';
 import type { AssetSummaryViewData } from '../../lib/asset-analysis';
+import InsightProfilePanel from './InsightProfilePanel';
 
 export type SummaryViewData = AssetSummaryViewData;
 
@@ -22,12 +23,14 @@ const SummaryView: React.FC<SummaryViewProps> = ({ onNavigate, fundamentalDisabl
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 space-y-6 px-6 pb-12 duration-500">
+      <InsightProfilePanel profile={summary.insightProfile} fallback={summary.insights} title="종합 인사이트" />
+
       <div className="card flex flex-col items-center gap-10 p-8 lg:flex-row">
         <div className="flex-shrink-0">
           <Gauge score={summary.score} label={summary.overall} title="종합 시그널" size={280} />
         </div>
         <div className="flex-1 space-y-4 text-center lg:text-left">
-          <h3 className="text-xl font-bold text-text-primary">종합 인사이트</h3>
+          <h3 className="text-xl font-bold text-text-primary">종합 시그널</h3>
           <p className="max-w-2xl leading-relaxed text-text-secondary">{summary.insights}</p>
           {tags.length > 0 && (
             <div className="flex flex-wrap justify-center gap-4 pt-2 lg:justify-start">

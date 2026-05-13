@@ -24,6 +24,31 @@ export interface Indicator {
   score?: number;
 }
 
+export interface InsightEvidence {
+  label: string;
+  value: string;
+  interpretation: string;
+}
+
+export interface InsightSection {
+  id: string;
+  title: string;
+  tone: 'positive' | 'neutral' | 'negative' | 'warning';
+  summary: string;
+  evidence: InsightEvidence[];
+}
+
+export interface InsightProfile {
+  headline: string;
+  stance: 'bullish' | 'neutral' | 'bearish' | 'mixed' | 'watch';
+  confidence: number;
+  horizon: 'short' | 'medium' | 'long' | 'portfolio';
+  sections: InsightSection[];
+  conflicts: string[];
+  nextChecks: string[];
+  dataQuality: string[];
+}
+
 export interface IndicatorsResponse {
   indicators: Indicator[];
   moving_averages: MovingAverage[];
@@ -44,6 +69,7 @@ export interface IndicatorsResponse {
   insights?: {
     summary: string;
     details?: { category: string; text: string }[];
+    insight_profile?: InsightProfile;
   };
   error?: string;
 }
@@ -129,6 +155,28 @@ export interface UploadSampleMeta {
   description: string;
 }
 
+export interface FundamentalItem {
+  label: string;
+  value: string;
+  raw?: number | null;
+  position?: number | null;
+  note?: string | null;
+}
+
+export interface FundamentalSection {
+  title: string;
+  items: FundamentalItem[];
+}
+
+export interface FundamentalReport {
+  symbol: string;
+  market: string;
+  name: string;
+  sections: FundamentalSection[];
+  generated_at: string;
+  insight_profile?: InsightProfile;
+}
+
 const viteEnv = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
 const BASE_URL = viteEnv?.VITE_API_BASE_URL || 'http://localhost:8000';
 
@@ -194,8 +242,8 @@ export const api = {
       ),
   },
   fundamental: {
-    kr: (ticker: string) => get(`/fundamental/kr/${enc(ticker)}`),
-    us: (symbol: string) => get(`/fundamental/us/${enc(symbol)}`),
+    kr: (ticker: string) => get<FundamentalReport>(`/fundamental/kr/${enc(ticker)}`),
+    us: (symbol: string) => get<FundamentalReport>(`/fundamental/us/${enc(symbol)}`),
   },
   uploadSamples: () => get<UploadSampleMeta[]>('/upload/samples'),
   uploadSampleResult: (sampleId: string) => get<UploadAnalysisResult>(`/upload/samples/${enc(sampleId)}`, { timeoutMs: 2500 }),

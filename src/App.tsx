@@ -8,6 +8,7 @@ import SummaryView from './components/analysis/SummaryView';
 import FundamentalView from './components/analysis/FundamentalView';
 import UploadView from './components/upload/UploadView';
 import { useBinanceWebSocket } from './hooks/useBinanceWebSocket';
+import { useFundamentalData } from './hooks/useFundamentalData';
 import { useIndicators, useKrStockQuote, useMarketData } from './hooks/useIndicatorsData';
 import { buildAssetSummary } from './lib/asset-analysis';
 import type { AssetSearchResult, MarketData, RuntimeIndicatorParams, StockQuote } from './lib/api';
@@ -111,6 +112,7 @@ function App() {
   const isHeaderLoading = marketRequest.kind === 'kr' && quote.loading && !quote.data && !quote.error;
   const runtimeParams: RuntimeIndicatorParams = {};
   const indicators = useIndicators(marketRequest, runtimeParams, chartTimeframe);
+  const fundamental = useFundamentalData(marketRequest);
   const isFundamentalDisabled = !supportsFundamental(activeCategory);
   const assetSummary = buildAssetSummary({
     asset: currentAsset,
@@ -195,7 +197,12 @@ function App() {
                 </Suspense>
               )}
               {activeAnalysisTab === 'fundamental' && (
-                <FundamentalView market={activeCategory === KR_CATEGORY ? 'kr' : 'us'} />
+                <FundamentalView
+                  market={activeCategory === KR_CATEGORY ? 'kr' : 'us'}
+                  data={fundamental.data ?? undefined}
+                  loading={fundamental.loading}
+                  error={fundamental.error}
+                />
               )}
             </div>
           </>

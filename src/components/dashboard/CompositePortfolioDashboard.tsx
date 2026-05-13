@@ -5,11 +5,12 @@ import MonthlyReturnsHeatmap from '../visualization/MonthlyReturnsHeatmap';
 import NormalizedComparisonChart from '../visualization/NormalizedComparisonChart';
 import PortfolioDonut from '../visualization/PortfolioDonut';
 import { api } from '../../lib/api';
-import type { Candle, IndicatorsResponse, MovingAverage } from '../../lib/api';
+import type { Candle, IndicatorsResponse, InsightProfile, MovingAverage } from '../../lib/api';
 import type { UploadAnalysisResult } from '../../lib/chart-spec';
 import { DEFAULT_CHART_TIMEFRAME, type ChartTimeframe } from '../../lib/timeframes';
 import SummaryView, { type SummaryViewData } from '../analysis/SummaryView';
 import FundamentalView, { type FundamentalViewData, type FundamentalViewCategory } from '../analysis/FundamentalView';
+import InsightProfilePanel from '../analysis/InsightProfilePanel';
 import {
   compositeHoldings,
   compositeSummary,
@@ -156,12 +157,175 @@ function asStringArray(value: unknown, fallback: string[]): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.length > 0) : fallback;
 }
 
+function parseInsightProfile(value: unknown, fallback: InsightProfile): InsightProfile {
+  const record = asRecord(value);
+  const sections = asArray(record.sections)
+    .map((section) => {
+      const tone = asString(section.tone, 'neutral');
+      return {
+        id: asString(section.id, asString(section.title, 'section')),
+        title: asString(section.title, '인사이트'),
+        tone: (['positive', 'neutral', 'negative', 'warning'].includes(tone) ? tone : 'neutral') as InsightProfile['sections'][number]['tone'],
+        summary: asString(section.summary, ''),
+        evidence: asArray(section.evidence)
+          .map((item) => ({
+            label: asString(item.label, ''),
+            value: asString(item.value, ''),
+            interpretation: asString(item.interpretation, ''),
+          }))
+          .filter((item) => item.label),
+      };
+    })
+    .filter((section) => section.summary);
+  if (!sections.length) return fallback;
+  const stance = asString(record.stance, fallback.stance);
+  return {
+    headline: asString(record.headline, fallback.headline),
+    stance: (['bullish', 'neutral', 'bearish', 'mixed', 'watch'].includes(stance) ? stance : fallback.stance) as InsightProfile['stance'],
+    confidence: asNumber(record.confidence, fallback.confidence),
+    horizon: asString(record.horizon, fallback.horizon) as InsightProfile['horizon'],
+    sections,
+    conflicts: asStringArray(record.conflicts, fallback.conflicts),
+    nextChecks: asStringArray(record.nextChecks, fallback.nextChecks),
+    dataQuality: asStringArray(record.dataQuality, fallback.dataQuality),
+  };
+}
+
 function formatPercent(value: number) {
   return `${value >= 0 ? '+' : ''}${(value * 100).toFixed(1)}%`;
 }
 
 function formatSparklinePercent(value: number) {
   return formatPercent(value);
+}
+
+function portfolioInsight(summary: typeof compositeSummary, holdings: CompositeHolding[]): InsightProfile {
+  const topContributor = holdings.reduce((best, item) => (item.contribution > best.contribution ? item : best), holdings[0]);
+  const riskDriver = holdings.reduce((highest, item) => (item.volatility > highest.volatility ? item : highest), holdings[0]);
+  const maxWeight = Math.max(...holdings.map((holding) => holding.weight), 0);
+  const stance = summary.signalScore >= 70 ? 'bullish' : summary.signalScore <= 40 ? 'bearish' : 'mixed';
+  return {
+    headline: `포트폴리오는 ${summary.signalLabel} 구간이며, 성과 기여와 낙폭 리스크를 함께 확인해야 합니다.`,
+    stance,
+    confidence: summary.signalScore,
+    horizon: 'portfolio',
+    sections: [
+      {
+        id: 'return-driver',
+        title: '성과 기여',
+        tone: summary.totalReturn >= 0 ? 'positive' : 'negative',
+        summary: `${topContributor?.name ?? '상위 자산'}이 가장 큰 성과 기여를 만들고 있습니다.`,
+        evidence: [
+          { label: '총 수익률', value: formatPercent(summary.totalReturn), interpretation: '전체 포트폴리오 누적 성과입니다.' },
+          { label: '상위 기여', value: topContributor ? `${topContributor.ticker} ${formatPercent(topContributor.contribution)}` : '-', interpretation: '성과가 특정 자산에 치우쳤는지 확인합니다.' },
+        ],
+      },
+      {
+        id: 'risk-driver',
+        title: '리스크 기여',
+        tone: summary.maxDrawdown <= -0.08 ? 'warning' : 'neutral',
+        summary: `${riskDriver?.name ?? '고변동 자산'}의 변동성과 포트폴리오 최대 낙폭을 함께 봅니다.`,
+        evidence: [
+          { label: '연율 변동성', value: formatPercent(summary.volatility).replace('+', ''), interpretation: '성과의 흔들림 정도입니다.' },
+          { label: '최대 낙폭', value: formatPercent(summary.maxDrawdown), interpretation: '손실 구간에서 체감되는 하락 폭입니다.' },
+          { label: '고변동 자산', value: riskDriver ? `${riskDriver.ticker} ${formatPercent(riskDriver.volatility).replace('+', '')}` : '-', interpretation: '리스크 관리 우선순위를 정합니다.' },
+        ],
+      },
+      {
+        id: 'allocation',
+        title: '분산 구조',
+        tone: maxWeight >= 0.35 ? 'warning' : 'neutral',
+        summary: maxWeight >= 0.35 ? '상위 비중 자산의 영향력이 커 리밸런싱 기준 확인이 필요합니다.' : '비중이 비교적 분산되어 단일 자산 의존도가 제한적입니다.',
+        evidence: [
+          { label: '보유 자산', value: `${holdings.length}개`, interpretation: '분산 판단의 기본 단위입니다.' },
+          { label: '최대 비중', value: formatPercent(maxWeight).replace('+', ''), interpretation: '집중 위험을 확인합니다.' },
+          { label: 'Sharpe', value: summary.sharpe.toFixed(2), interpretation: '위험 대비 성과를 보조적으로 판단합니다.' },
+        ],
+      },
+    ],
+    conflicts: summary.totalReturn > 0 && summary.maxDrawdown < -0.08 ? ['수익률은 양호하지만 낙폭이 깊어 방어 구간의 대응 기준이 필요합니다.'] : [],
+    nextChecks: ['상위 기여 자산의 비중이 과도해졌는지 확인합니다.', '최대 낙폭 구간에서 어떤 자산이 손실을 키웠는지 확인합니다.', '월별 수익률이 특정 시기에 몰리는지 확인합니다.'],
+    dataQuality: [],
+  };
+}
+
+function performanceInsight(summary: typeof compositeSummary): InsightProfile {
+  return {
+    headline: `성과/리스크는 총 수익률 ${formatPercent(summary.totalReturn)}, 최대 낙폭 ${formatPercent(summary.maxDrawdown)}, Sharpe ${summary.sharpe.toFixed(2)}를 함께 봅니다.`,
+    stance: summary.sharpe >= 1 ? 'bullish' : summary.maxDrawdown < -0.1 ? 'watch' : 'neutral',
+    confidence: Math.max(0, Math.min(100, Math.round(50 + summary.sharpe * 18 + summary.totalReturn * 100))),
+    horizon: 'portfolio',
+    sections: [
+      {
+        id: 'return',
+        title: '누적 성과',
+        tone: summary.totalReturn >= 0 ? 'positive' : 'negative',
+        summary: '누적 성과는 포트폴리오가 분석 기간 동안 만든 전체 방향성을 보여줍니다.',
+        evidence: [
+          { label: '총 수익률', value: formatPercent(summary.totalReturn), interpretation: '절대 성과 기준입니다.' },
+          { label: '분석 기간', value: summary.period, interpretation: '성과를 해석하는 시간 범위입니다.' },
+        ],
+      },
+      {
+        id: 'drawdown',
+        title: '낙폭',
+        tone: summary.maxDrawdown < -0.08 ? 'warning' : 'neutral',
+        summary: '최대 낙폭은 성과가 좋더라도 투자자가 버텨야 하는 손실 구간을 보여줍니다.',
+        evidence: [
+          { label: '최대 낙폭', value: formatPercent(summary.maxDrawdown), interpretation: '가장 깊었던 하락 구간입니다.' },
+          { label: '변동성', value: formatPercent(summary.volatility).replace('+', ''), interpretation: '수익률 경로의 흔들림입니다.' },
+        ],
+      },
+      {
+        id: 'risk-adjusted',
+        title: '위험 대비 성과',
+        tone: summary.sharpe >= 1 ? 'positive' : summary.sharpe < 0.5 ? 'warning' : 'neutral',
+        summary: 'Sharpe 비율로 단순 수익률이 리스크를 보상하는지 확인합니다.',
+        evidence: [
+          { label: 'Sharpe', value: summary.sharpe.toFixed(2), interpretation: summary.sharpe >= 1 ? '위험 대비 성과가 양호합니다.' : '리스크 대비 보상 확인이 필요합니다.' },
+        ],
+      },
+    ],
+    conflicts: [],
+    nextChecks: ['낙폭이 깊어진 구간의 자산별 기여도를 확인합니다.', '월별 수익률이 특정 자산 이벤트에 의존했는지 확인합니다.'],
+    dataQuality: [],
+  };
+}
+
+function assetSummaryInsight(holding: CompositeHolding): InsightProfile {
+  const stance = holding.returnRate >= 0.08 ? 'bullish' : holding.returnRate < 0 ? 'bearish' : 'neutral';
+  return {
+    headline: `${holding.name}는 포트폴리오에서 ${formatPercent(holding.weight).replace('+', '')} 비중이며 ${formatPercent(holding.returnRate)} 성과를 기록했습니다.`,
+    stance,
+    confidence: Math.round((holding.technicalScore + holding.foundationScore) / 2),
+    horizon: 'portfolio',
+    sections: [
+      {
+        id: 'role',
+        title: '포트폴리오 역할',
+        tone: holding.contribution >= 0 ? 'positive' : 'negative',
+        summary: '비중과 수익률을 함께 봐야 실제 포트폴리오 기여도를 판단할 수 있습니다.',
+        evidence: [
+          { label: '비중', value: formatPercent(holding.weight).replace('+', ''), interpretation: '전체 포트폴리오 내 영향력입니다.' },
+          { label: '기여도', value: formatPercent(holding.contribution), interpretation: '비중과 수익률이 합쳐진 실제 성과 기여입니다.' },
+        ],
+      },
+      {
+        id: 'quality',
+        title: '기술/기초 균형',
+        tone: holding.technicalScore >= 70 && holding.foundationScore >= 65 ? 'positive' : 'neutral',
+        summary: '기술 점수와 기초 점수가 같은 방향인지 확인합니다.',
+        evidence: [
+          { label: '기술 점수', value: `${holding.technicalScore}%`, interpretation: holding.technicalSignal },
+          { label: '기초 점수', value: `${holding.foundationScore}%`, interpretation: holding.foundationSignal },
+          { label: '변동성', value: formatPercent(holding.volatility).replace('+', ''), interpretation: '포트폴리오 내 위험 기여를 판단합니다.' },
+        ],
+      },
+    ],
+    conflicts: holding.technicalScore >= 70 && holding.volatility >= 0.3 ? ['기술 흐름은 강하지만 변동성이 높아 비중 확대 판단은 신중해야 합니다.'] : [],
+    nextChecks: ['기술적 분석 탭에서 추세와 과열 여부를 확인합니다.', '기본적 분석 탭에서 자산 유형별 기초 지표를 확인합니다.'],
+    dataQuality: [],
+  };
 }
 
 function cleanHolding(holding: CompositeHolding): CompositeHolding {
@@ -265,6 +429,7 @@ function fallbackIndicators(holding: CompositeHolding, candles: Candle[] = getCo
     },
     insights: {
       summary: `${holding.name}의 실제 과거 일봉 기준 기술 점수는 ${holding.technicalScore}%입니다. OHLCV 흐름과 이동평균, 모멘텀을 함께 본 요약입니다.`,
+      insight_profile: assetSummaryInsight(holding),
     },
   };
 }
@@ -283,6 +448,7 @@ function fallbackSummary(holding: CompositeHolding): SummaryViewData {
     overall: holding.returnRate >= 0 ? '긍정' : '주의',
     score: Math.round((holding.technicalScore + holding.foundationScore) / 2),
     insights: `${holding.name}는 포트폴리오에서 ${formatPercent(holding.weight).replace('+', '')} 비중을 차지하며 ${formatPercent(holding.returnRate)} 수익률을 기록했습니다. 기술 점수와 기초 점수를 함께 보면 단일 가격 흐름보다 역할과 위험을 더 균형 있게 판단할 수 있습니다.`,
+    insightProfile: assetSummaryInsight(holding),
     tags: [holding.technicalSignal, holding.foundationSignal],
     technical: {
       score: holding.technicalScore,
@@ -327,6 +493,7 @@ function fallbackFundamental(holding: CompositeHolding): FundamentalViewData {
         ? '업로드 또는 실제 일봉 스냅샷에 포함된 밸류에이션, 수익성, 주주환원 지표를 요약합니다.'
         : '주식 재무제표가 아니라 자산 유형에 맞는 비용, 규모, 위험, 포트폴리오 역할 지표를 요약합니다.',
     supported: true,
+    insightProfile: assetSummaryInsight(holding),
     categories,
     history: generated.history ?? [],
   };
@@ -351,6 +518,7 @@ function parseFundamentalData(value: unknown, fallback: FundamentalViewData): Fu
     description: asString(record.description, fallback.description ?? ''),
     supported: asBoolean(record.supported, true),
     emptyMessage: asString(record.emptyMessage, fallback.emptyMessage ?? ''),
+    insightProfile: parseInsightProfile(record.insight_profile, fallback.insightProfile ?? assetSummaryInsight(cleanHolding(compositeHoldings[0]))),
     categories,
     history: parseFundamentalHistory(record.history, fallback.history ?? []),
   };
@@ -380,6 +548,7 @@ function parseTechnicalData(value: unknown, fallback: CompositeTechnicalData): C
       gauges: Object.keys(gauges).length ? gauges as IndicatorsResponse['gauges'] : fallbackIndicatorsData.gauges,
       insights: {
         summary: asString(record.insight, fallbackIndicatorsData.insights?.summary ?? ''),
+        insight_profile: parseInsightProfile(record.insight_profile, fallbackIndicatorsData.insights?.insight_profile ?? assetSummaryInsight(cleanHolding(compositeHoldings[0]))),
       },
     },
   };
@@ -389,10 +558,12 @@ function parseSummaryData(asset: Record<string, unknown>, fallback: SummaryViewD
   const record = asRecord(asset.summary);
   if (!Object.keys(record).length) return fallback;
   const fundamentals = asRecord(asset.fundamentals);
+  const fallbackProfile = fallback.insightProfile ?? assetSummaryInsight(cleanHolding(compositeHoldings[0]));
   return {
     overall: asString(record.overallSignal, fallback.overall),
     score: asNumber(asset.technical_score, fallback.score),
     insights: asString(record.insight, fallback.insights),
+    insightProfile: parseInsightProfile(record.insight_profile, fallbackProfile),
     tags: asStringArray(record.tags, fallback.tags ?? []),
     technical: {
       score: asNumber(asset.technical_score, fallback.technical.score),
@@ -621,8 +792,10 @@ function PerformanceSnapshot({ values }: { values: number[] }) {
 }
 
 function SummaryTab({ summary, holdings }: { summary: typeof compositeSummary; holdings: CompositeHolding[] }) {
+  const insight = portfolioInsight(summary, holdings);
   return (
     <div className="space-y-6">
+      <InsightProfilePanel profile={insight} title="포트폴리오 종합 인사이트" />
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.85fr_1.15fr]">
         <div className="card flex items-center justify-center p-6">
           <Gauge score={summary.signalScore} label={summary.signalLabel} title="종합 시그널" size={220} />
@@ -655,9 +828,11 @@ function SummaryTab({ summary, holdings }: { summary: typeof compositeSummary; h
   );
 }
 
-function PerformanceTab({ monthlies }: { monthlies: typeof monthlyReturns }) {
+function PerformanceTab({ summary, monthlies }: { summary: typeof compositeSummary; monthlies: typeof monthlyReturns }) {
+  const riskInsight = performanceInsight(summary);
   return (
     <div className="space-y-6">
+      <InsightProfilePanel profile={riskInsight} title="성과/리스크 인사이트" />
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <div className="card p-5">
           <div className="mb-4 flex items-center justify-between">
@@ -926,7 +1101,7 @@ export default function CompositePortfolioDashboard({ result, loadSample = false
       </div>
 
       {activeTab === 'summary' && <SummaryTab summary={data.summary} holdings={data.holdings} />}
-      {activeTab === 'performance' && <PerformanceTab monthlies={data.monthlyReturns} />}
+      {activeTab === 'performance' && <PerformanceTab summary={data.summary} monthlies={data.monthlyReturns} />}
       {activeTab === 'allocation' && <AllocationTab holdings={data.holdings} />}
       {activeTab === 'assets' && <AssetsTab holdings={data.holdings} theme={theme} />}
     </div>

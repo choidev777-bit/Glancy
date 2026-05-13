@@ -6,6 +6,8 @@ import {
   fundamentalQuarterHistory,
   type FundamentalHistoryMetric,
 } from '../../data/mockData';
+import type { InsightProfile } from '../../lib/api';
+import InsightProfilePanel from './InsightProfilePanel';
 
 export interface FundamentalViewItem {
   label: string;
@@ -25,11 +27,14 @@ export interface FundamentalViewData {
   emptyMessage?: string;
   categories: FundamentalViewCategory[];
   history?: FundamentalHistoryMetric[];
+  insightProfile?: InsightProfile;
 }
 
 interface FundamentalViewProps {
   market?: 'kr' | 'us';
   data?: FundamentalViewData;
+  loading?: boolean;
+  error?: string | null;
 }
 
 type TrendRange = 'annual' | 'quarterly';
@@ -59,7 +64,7 @@ function historyCue(hasAnnual: boolean, hasQuarterly: boolean) {
   return '';
 }
 
-const FundamentalView: React.FC<FundamentalViewProps> = ({ market = 'us', data }) => {
+const FundamentalView: React.FC<FundamentalViewProps> = ({ market = 'us', data, loading = false, error }) => {
   const [activeView, setActiveView] = useState<'summary' | 'trend'>('summary');
   const [trendRange, setTrendRange] = useState<TrendRange>('annual');
   const filteredCategories = data
@@ -82,8 +87,18 @@ const FundamentalView: React.FC<FundamentalViewProps> = ({ market = 'us', data }
     return <EmptyState message={data?.emptyMessage ?? '이 자산은 표시할 기본적 분석 데이터가 없습니다.'} />;
   }
 
+  if (loading) {
+    return <div className="card mx-6 p-8 text-center text-sm text-text-secondary">기본적 분석 데이터를 불러오는 중입니다...</div>;
+  }
+
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 space-y-6 px-6 pb-12 duration-500">
+      <InsightProfilePanel
+        profile={data?.insightProfile ?? null}
+        fallback={error ? `기본적 분석 데이터 수신이 불안정합니다: ${error}` : data?.description ?? DEFAULT_DESCRIPTION}
+        title="기본적 분석 인사이트"
+      />
+
       <div className="flex flex-col gap-3 rounded-card border border-border bg-surface-1 p-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h3 className="font-bold text-text-primary">{data?.title ?? '기본적 분석'}</h3>

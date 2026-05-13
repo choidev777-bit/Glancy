@@ -323,6 +323,25 @@ def _technical_detail(asset: str, candles: list[dict], technical_score: float, r
     ma_score = max(0, min(100, 50 + price_return * 150))
     overall_score = max(0, min(100, (technical_score + ma_score) / 2))
     trend_signal = "buy" if price_return > 0 else "sell" if price_return < 0 else "neutral"
+    technical_profile = _asset_insight_profile(
+        asset=asset,
+        headline=f"{asset} technical profile is based on uploaded OHLCV and portfolio contribution.",
+        confidence=round(technical_score),
+        stance="bullish" if trend_signal == "buy" else "bearish" if trend_signal == "sell" else "neutral",
+        sections=[
+            {
+                "id": "trend",
+                "title": "Trend",
+                "tone": "positive" if trend_signal == "buy" else "negative" if trend_signal == "sell" else "neutral",
+                "summary": f"Uploaded OHLCV return over the analysis period is {_format_percent(price_return)}.",
+                "evidence": [
+                    {"label": "Candles", "value": str(len(candles)), "interpretation": "Number of uploaded OHLCV rows used."},
+                    {"label": "Price return", "value": _format_percent(price_return), "interpretation": "Direction from first to latest close."},
+                ],
+            }
+        ],
+        next_checks=["Confirm whether the trend is supported by moving averages.", "Check whether volatility is appropriate for the portfolio weight."],
+    )
     return {
         "candles": candles,
         "has_ohlcv": True,
@@ -334,6 +353,7 @@ def _technical_detail(asset: str, candles: list[dict], technical_score: float, r
         "indicators": _skill_indicator_rows(candles, technical_score, price_return),
         "moving_averages": ma_rows,
         "insight": f"{asset} technical analysis is based on {len(candles)} uploaded OHLCV candles.",
+        "insight_profile": technical_profile,
     }
 
 
@@ -354,8 +374,58 @@ def _fundamental_detail(asset: str, kind: str, fundamentals: dict[str, str], fou
     return {
         "title": title_by_kind.get(kind, "Asset fundamentals"),
         "supported": True,
+        "insight_profile": _asset_insight_profile(
+            asset=asset,
+            headline=f"{asset} fundamentals are interpreted by asset type and portfolio role.",
+            confidence=round(foundation_score),
+            stance="bullish" if foundation_score >= 70 else "watch" if foundation_score <= 45 else "neutral",
+            sections=[
+                {
+                    "id": "fundamentals",
+                    "title": title_by_kind.get(kind, "Asset fundamentals"),
+                    "tone": "positive" if foundation_score >= 70 else "neutral",
+                    "summary": "Available uploaded fundamental fields are used without fabricating missing metrics.",
+                    "evidence": metric_items[:3],
+                }
+            ],
+            next_checks=["Compare the asset type metric with the portfolio weight.", "Review history trends when available."],
+            data_quality=[] if fundamentals else ["Uploaded fundamental fields are limited for this asset."],
+        ),
         "categories": [{"title": title_by_kind.get(kind, "Asset fundamentals"), "items": metric_items}],
         "history": history,
+    }
+
+
+def _asset_insight_profile(
+    asset: str,
+    headline: str,
+    confidence: int,
+    stance: str,
+    sections: list[dict],
+    next_checks: list[str],
+    data_quality: list[str] | None = None,
+) -> dict:
+    normalized_sections = []
+    for section in sections:
+        evidence = []
+        for item in section.get("evidence", []):
+            evidence.append(
+                {
+                    "label": str(item.get("label", "")),
+                    "value": str(item.get("value", "")),
+                    "interpretation": str(item.get("interpretation", item.get("position", ""))),
+                }
+            )
+        normalized_sections.append({**section, "evidence": evidence})
+    return {
+        "headline": headline,
+        "stance": stance,
+        "confidence": max(0, min(100, int(confidence))),
+        "horizon": "portfolio",
+        "sections": normalized_sections,
+        "conflicts": [],
+        "nextChecks": next_checks,
+        "dataQuality": data_quality or [],
     }
 
 
@@ -398,6 +468,26 @@ def _asset_cards(
                 "summary": {
                     "overallSignal": "positive" if return_rate > 0 else "neutral",
                     "insight": f"{asset} contributes {_rounded(weight * return_rate)} to the uploaded portfolio return.",
+                    "insight_profile": _asset_insight_profile(
+                        asset=asset,
+                        headline=f"{asset} contributes {_format_percent(weight * return_rate)} to the uploaded portfolio return.",
+                        confidence=round((technical_score + foundation_score) / 2),
+                        stance="bullish" if return_rate > 0.08 else "bearish" if return_rate < 0 else "neutral",
+                        sections=[
+                            {
+                                "id": "role",
+                                "title": "Portfolio role",
+                                "tone": "positive" if return_rate >= 0 else "negative",
+                                "summary": "Weight and return are combined to judge actual portfolio contribution.",
+                                "evidence": [
+                                    {"label": "Weight", "value": _format_percent(weight, signed=False), "interpretation": "Portfolio exposure."},
+                                    {"label": "Return", "value": _format_percent(return_rate), "interpretation": "Asset-level performance."},
+                                    {"label": "Contribution", "value": _format_percent(weight * return_rate), "interpretation": "Weighted contribution."},
+                                ],
+                            }
+                        ],
+                        next_checks=["Review technical signals before changing the weight.", "Review asset-type fundamentals for durability."],
+                    ),
                     "tags": [kind, "uploaded_snapshot"],
                 },
                 "technical": _technical_detail(asset, candles, technical_score, return_rate),

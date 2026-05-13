@@ -6,6 +6,7 @@ from app.insights.per_indicator import (
     obv_insight,
     rsi_insight,
 )
+from app.insights.technical_profile import build_technical_profile
 
 
 def _by_name(indicators: list[dict], prefix: str, default: dict) -> dict:
@@ -57,5 +58,6 @@ def compose(compute_result: dict, current_price: float) -> dict:
         overall_signal=compute_result["gauges"]["overall"]["signal"],
     )
 
-    return {"summary": summary, "details": details}
+    profile = build_technical_profile(compute_result, current_price)
 
+    return {"summary": summary, "details": details, "insight_profile": profile}
